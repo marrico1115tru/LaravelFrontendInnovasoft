@@ -1,9 +1,26 @@
-import React, { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
-  Table, TableHeader, TableColumn, TableBody, TableRow, TableCell,
-  Input, Button, Dropdown, DropdownMenu, DropdownItem, DropdownTrigger,
-  Pagination, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader,
-  Checkbox, useDisclosure, type SortDescriptor,
+  Table,
+  TableHeader,
+  TableColumn,
+  TableBody,
+  TableRow,
+  TableCell,
+  Input,
+  Button,
+  Dropdown,
+  DropdownMenu,
+  DropdownItem,
+  DropdownTrigger,
+  Pagination,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Checkbox,
+  useDisclosure,
+  type SortDescriptor,
 } from "@heroui/react";
 
 import {
@@ -23,14 +40,10 @@ const columns = [
   { name: "Nombre", uid: "nombre", sortable: true },
   { name: "Titulado", uid: "titulado", sortable: false },
   { name: "Responsable", uid: "responsable", sortable: false },
-  { name: "# Usuarios", uid: "usuarios", sortable: false },
-  { name: "# Entregas", uid: "entregas", sortable: false },
   { name: "Acciones", uid: "actions" },
 ];
 
-const INITIAL_VISIBLE_COLUMNS = [
-  "id", "nombre", "titulado", "responsable", "usuarios", "entregas", "actions",
-];
+const INITIAL_VISIBLE_COLUMNS = ["id", "nombre", "titulado", "responsable", "actions"];
 
 const FichasFormacionPage = () => {
   const [fichas, setFichas] = useState<any[]>([]);
@@ -62,21 +75,13 @@ const FichasFormacionPage = () => {
 
   const cargarDatos = async () => {
     try {
-      const [fs, ts, us] = await Promise.all([
-        getFichasFormacion(),
-        getTitulados(),
-        getUsuarios(),
-      ]);
+      const [fs, ts, us] = await Promise.all([getFichasFormacion(), getTitulados(), getUsuarios()]);
       setFichas(Array.isArray(fs) ? fs : []);
       setTitulados(Array.isArray(ts) ? ts : []);
       setUsuarios(Array.isArray(us) ? us : []);
-    } catch (error:any) {
+    } catch (error) {
       console.error("Error cargando fichas o datos relacionados", error);
-      notify(
-        error?.code === "ERR_NETWORK" || error?.message === "Network Error" ? 
-        "No se puede conectar con el servidor. Verifica que esté activo." : 
-        "Error cargando fichas."
-      );
+      notify("Error cargando fichas o datos relacionados");
     }
   };
 
@@ -138,21 +143,17 @@ const FichasFormacionPage = () => {
 
   const filtered = useMemo(() => {
     if (!filterValue.trim()) return fichas;
-    return fichas.filter((f) => {
-      return `${f.nombre} ${f.titulado?.nombre ?? ""} ${
-        f.usuario_responsable
-          ? `${f.usuario_responsable.nombre} ${f.usuario_responsable.apellido ?? ""}`
-          : ""
-      }`
-        .toLowerCase()
-        .includes(filterValue.toLowerCase());
-    });
+    return fichas.filter((f) =>
+      `${f.nombre} ${f.titulado?.nombre || ""} ${
+        f.usuario_responsable ? `${f.usuario_responsable.nombre} ${f.usuario_responsable.apellido || ""}` : ""
+      }`.toLowerCase().includes(filterValue.toLowerCase())
+    );
   }, [fichas, filterValue]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
 
   const sliced = useMemo(() => {
-    let start = (page - 1) * rowsPerPage;
+    const start = (page - 1) * rowsPerPage;
     return filtered.slice(start, start + rowsPerPage);
   }, [filtered, page, rowsPerPage]);
 
@@ -175,43 +176,25 @@ const FichasFormacionPage = () => {
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
       case "nombre":
-        return (
-          <span className="font-medium text-gray-800 break-words max-w-[16rem]">
-            {item.nombre}
-          </span>
-        );
+        return <span className="font-medium text-gray-800 break-words max-w-[16rem]">{item.nombre}</span>;
       case "titulado":
         return <span className="text-sm text-gray-600">{item.titulado?.nombre || "—"}</span>;
       case "responsable":
         return (
           <span className="text-sm text-gray-600">
-            {item.usuario_responsable
-              ? `${item.usuario_responsable.nombre} ${item.usuario_responsable.apellido ?? ""}`
-              : "—"}
+            {item.usuario_responsable ? `${item.usuario_responsable.nombre} ${item.usuario_responsable.apellido || ""}` : "—"}
           </span>
         );
-      case "usuarios":
-        return <span className="text-sm text-gray-600">{item.usuarios?.length || 0}</span>;
-      case "entregas":
-        return <span className="text-sm text-gray-600">{item.entregaMaterials?.length || 0}</span>;
       case "actions":
         return (
           <Dropdown>
             <DropdownTrigger>
-              <Button
-                isIconOnly
-                size="sm"
-                variant="light"
-                className="rounded-full text-[#0D1324]"
-              >
+              <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
                 <MoreVertical />
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              <DropdownItem
-                onPress={() => abrirModalEditar(item)}
-                key={`editar-${item.id}`}
-              >
+              <DropdownItem onPress={() => abrirModalEditar(item)} key={`editar-${item.id}`}>
                 Editar
               </DropdownItem>
               <DropdownItem onPress={() => eliminar(item.id)} key={`eliminar-${item.id}`}>
@@ -257,10 +240,7 @@ const FichasFormacionPage = () => {
             isHeaderSticky
             sortDescriptor={sortDescriptor}
             onSortChange={setSortDescriptor}
-            classNames={{
-              th: "py-3 px-4 bg-[#e8ecf4] text-[#0D1324] font-semibold text-sm",
-              td: "align-middle py-3 px-4",
-            }}
+            classNames={{ th: "py-3 px-4 bg-[#e8ecf4] text-[#0D1324] font-semibold text-sm", td: "align-middle py-3 px-4" }}
             topContent={
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
@@ -282,22 +262,14 @@ const FichasFormacionPage = () => {
                       <DropdownMenu aria-label="Seleccionar columnas">
                         {columns.filter((c) => c.uid !== "actions").map((col) => (
                           <DropdownItem key={col.uid} onPress={() => toggleColumn(col.uid)}>
-                            <Checkbox 
-                              isSelected={visibleColumns.has(col.uid)} 
-                              readOnly 
-                              size="sm"
-                            >
+                            <Checkbox isSelected={visibleColumns.has(col.uid)} readOnly size="sm">
                               {col.name}
                             </Checkbox>
                           </DropdownItem>
                         ))}
                       </DropdownMenu>
                     </Dropdown>
-                    <Button
-                      className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
-                      endContent={<PlusIcon />}
-                      onPress={onOpen}
-                    >
+                    <Button className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow" endContent={<PlusIcon />} onPress={onOpen}>
                       Nueva Ficha
                     </Button>
                   </div>
@@ -308,17 +280,8 @@ const FichasFormacionPage = () => {
                   </span>
                   <label className="flex items-center text-default-400 text-sm">
                     Filas por página:&nbsp;
-                    <select
-                      className="bg-transparent outline-none text-default-600 ml-1"
-                      value={rowsPerPage}
-                      onChange={(e) => {
-                        setRowsPerPage(parseInt(e.target.value));
-                        setPage(1);
-                      }}
-                    >
-                      {[5, 10, 15].map((n) => (
-                        <option key={n} value={n}>{n}</option>
-                      ))}
+                    <select className="bg-transparent outline-none text-default-600 ml-1" value={rowsPerPage} onChange={(e) => { setRowsPerPage(parseInt(e.target.value)); setPage(1); }}>
+                      {[5, 10, 15].map((n) => (<option key={n} value={n}>{n}</option>))}
                     </select>
                   </label>
                 </div>
@@ -326,40 +289,15 @@ const FichasFormacionPage = () => {
             }
             bottomContent={
               <div className="py-2 px-2 flex justify-center items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="flat"
-                  isDisabled={page === 1}
-                  onPress={() => setPage(page - 1)}
-                >
-                  Anterior
-                </Button>
-                <Pagination
-                  isCompact
-                  showControls
-                  page={page}
-                  total={pages}
-                  onChange={setPage}
-                />
-                <Button
-                  size="sm"
-                  variant="flat"
-                  isDisabled={page === pages}
-                  onPress={() => setPage(page + 1)}
-                >
-                  Siguiente
-                </Button>
+                <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>Anterior</Button>
+                <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
+                <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>Siguiente</Button>
               </div>
             }
           >
             <TableHeader columns={columns.filter(c => visibleColumns.has(c.uid))}>
               {(col) => (
-                <TableColumn
-                  key={col.uid}
-                  align={col.uid === "actions" ? "center" : "start"}
-                  width={col.uid === "nombre" ? 300 : undefined}
-                  allowsSorting={col.sortable}
-                >
+                <TableColumn key={col.uid} align={col.uid === "actions" ? "center" : "start"} width={col.uid === "nombre" ? 300 : undefined} allowsSorting={col.sortable}>
                   {col.name}
                 </TableColumn>
               )}
@@ -378,52 +316,27 @@ const FichasFormacionPage = () => {
           <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl">
             <ModalHeader>{editId ? "Editar Ficha" : "Nueva Ficha"}</ModalHeader>
             <ModalBody className="space-y-4">
-              <Input
-                label="Nombre"
-                placeholder="Ej: Ficha 2567890 - ADSI"
-                value={nombre}
-                onValueChange={setNombre}
-                radius="sm"
-                autoFocus
-              />
+              <Input label="Nombre" placeholder="Ej: Ficha 2567890 - ADSI" value={nombre} onValueChange={setNombre} radius="sm" autoFocus />
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Titulado</label>
-                <select
-                  value={idTitulado}
-                  onChange={(e) => setIdTitulado(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <select value={idTitulado} onChange={(e) => setIdTitulado(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="">Seleccione un titulado</option>
-                  {titulados.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.nombre}
-                    </option>
-                  ))}
+                  {titulados.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Responsable</label>
-                <select
-                  value={idResponsable}
-                  onChange={(e) => setIdResponsable(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <select value={idResponsable} onChange={(e) => setIdResponsable(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="">Seleccione un responsable</option>
                   {usuarios.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {`${u.nombre} ${u.apellido ?? ""}`}
-                    </option>
+                    <option key={u.id} value={u.id}>{`${u.nombre} ${u.apellido ?? ""}`}</option>
                   ))}
                 </select>
               </div>
             </ModalBody>
             <ModalFooter>
-              <Button variant="light" onPress={onClose}>
-                Cancelar
-              </Button>
-              <Button variant="flat" onPress={guardar}>
-                {editId ? "Actualizar" : "Crear"}
-              </Button>
+              <Button variant="light" onPress={onClose}>Cancelar</Button>
+              <Button variant="flat" onPress={guardar}>{editId ? "Actualizar" : "Crear"}</Button>
             </ModalFooter>
           </ModalContent>
         </Modal>

@@ -30,7 +30,6 @@ import {
 } from '@/Api/TituladosService';
 import DefaultLayout from '@/layouts/default';
 import { PlusIcon, MoreVertical, Search as SearchIcon } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
 
 /* 🟢 Toast */
 const Toast = ({ message }: { message: string }) => (
@@ -39,14 +38,13 @@ const Toast = ({ message }: { message: string }) => (
   </div>
 );
 
-/* 📊 Columnas */
+/* 📊 Columnas sin fichas */
 const columns = [
   { name: 'ID', uid: 'id', sortable: true },
   { name: 'Nombre', uid: 'nombre', sortable: false },
-  { name: 'Fichas', uid: 'fichas', sortable: false },
   { name: 'Acciones', uid: 'actions' },
 ];
-const INITIAL_VISIBLE_COLUMNS = ['id', 'nombre', 'fichas', 'actions'];
+const INITIAL_VISIBLE_COLUMNS = ['id', 'nombre', 'actions'];
 
 const TituladosPage = () => {
   /* Estado */
@@ -76,9 +74,10 @@ const TituladosPage = () => {
   const cargarTitulados = async () => {
     try {
       const data = await getTitulados();
-      setTitulados(data);
+      setTitulados(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error cargando titulados', err);
+      notify('Error cargando titulados');
     }
   };
 
@@ -89,18 +88,29 @@ const TituladosPage = () => {
   /* CRUD */
   const eliminar = async (id: number) => {
     if (!confirm('¿Eliminar titulado? No se podrá recuperar.')) return;
-    await deleteTitulado(id);
-    cargarTitulados();
-    notify(`🗑️ Titulado eliminado: ID ${id}`);
+    try {
+      await deleteTitulado(id);
+      notify(`🗑️ Titulado eliminado: ID ${id}`);
+      await cargarTitulados();
+    } catch {
+      notify('Error eliminando titulado');
+    }
   };
 
   const guardar = async () => {
     const payload = { nombre };
-    editId ? await updateTitulado(editId, payload) : await createTitulado(payload);
-    onClose();
-    setNombre('');
-    setEditId(null);
-    cargarTitulados();
+    try {
+      if (editId) await updateTitulado(editId, payload);
+      else await createTitulado(payload);
+      onClose();
+      setNombre('');
+      setEditId(null);
+      await cargarTitulados();
+      notify(editId ? '✏️ Titulado actualizado' : '✅ Titulado creado');
+    } catch (error) {
+      notify('Error guardando titulado');
+      console.error(error);
+    }
   };
 
   const abrirModalEditar = (t: any) => {
@@ -113,9 +123,7 @@ const TituladosPage = () => {
   const filtered = useMemo(
     () =>
       filterValue
-        ? titulados.filter((t) =>
-            t.nombre.toLowerCase().includes(filterValue.toLowerCase()),
-          )
+        ? titulados.filter((t) => t.nombre.toLowerCase().includes(filterValue.toLowerCase()))
         : titulados,
     [titulados, filterValue],
   );
@@ -147,28 +155,21 @@ const TituladosPage = () => {
             {item.nombre}
           </span>
         );
-      case 'fichas':
-        return (
-          <span className="text-sm text-gray-600">
-            {item.fichasFormacions?.length ?? 0}
-          </span>
-        );
       case 'actions':
         return (
           <Dropdown>
             <DropdownTrigger>
-              <Button
-                isIconOnly
-                size="sm"
-                variant="light"
-                className="rounded-full text-[#0D1324]"
-              >
+              <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
                 <MoreVertical />
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              <DropdownItem onPress={() => abrirModalEditar(item)} key={''}>Editar</DropdownItem>
-              <DropdownItem onPress={() => eliminar(item.id)} key={''}>Eliminar</DropdownItem>
+              <DropdownItem onPress={() => abrirModalEditar(item)} key={`editar-${item.id}`}>
+                Editar
+              </DropdownItem>
+              <DropdownItem onPress={() => eliminar(item.id)} key={`eliminar-${item.id}`}>
+                Eliminar
+              </DropdownItem>
             </DropdownMenu>
           </Dropdown>
         );
@@ -186,7 +187,7 @@ const TituladosPage = () => {
     });
   };
 
-  /* Top content */
+  /* Contenido superior */
   const topContent = (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
@@ -235,9 +236,7 @@ const TituladosPage = () => {
         </div>
       </div>
       <div className="flex items-center justify-between">
-        <span className="text-default-400 text-sm">
-          Total {titulados.length} titulados
-        </span>
+        <span className="text-default-400 text-sm">Total {titulados.length} titulados</span>
         <label className="flex items-center text-default-400 text-sm">
           Filas por página:&nbsp;
           <select
@@ -259,19 +258,14 @@ const TituladosPage = () => {
     </div>
   );
 
-  /* Bottom content */
+  /* Contenido inferior */
   const bottomContent = (
     <div className="py-2 px-2 flex justify-center items-center gap-2">
       <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
         Anterior
       </Button>
       <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
-      <Button
-        size="sm"
-        variant="flat"
-        isDisabled={page === pages}
-        onPress={() => setPage(page + 1)}
-      >
+      <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>
         Siguiente
       </Button>
     </div>
@@ -281,7 +275,6 @@ const TituladosPage = () => {
     <DefaultLayout>
       {toastMsg && <Toast message={toastMsg} />}
       <div className="p-6 space-y-6">
-        {/* Encabezado */}
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">
             🎓 Gestión de Titulados
@@ -289,7 +282,6 @@ const TituladosPage = () => {
           <p className="text-sm text-gray-600">Consulta y administra los programas titulados.</p>
         </header>
 
-        {/* Tabla desktop */}
         <div className="hidden md:block rounded-xl shadow-sm bg-white overflow-x-auto">
           <Table
             aria-label="Tabla de titulados"
@@ -324,44 +316,6 @@ const TituladosPage = () => {
           </Table>
         </div>
 
-        {/* Cards móvil */}
-        <div className="grid gap-4 md:hidden">
-          {sorted.length === 0 && (
-            <p className="text-center text-gray-500">No se encontraron titulados</p>
-          )}
-          {sorted.map((t) => (
-            <Card key={t.id} className="shadow-sm">
-              <CardContent className="space-y-2 p-4">
-                <div className="flex justify-between items-start">
-                  <h3 className="font-semibold text-lg break-words max-w-[14rem]">
-                    {t.nombre}
-                  </h3>
-                  <Dropdown>
-                    <DropdownTrigger>
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="light"
-                        className="rounded-full text-[#0D1324]"
-                      >
-                        <MoreVertical />
-                      </Button>
-                    </DropdownTrigger>
-                    <DropdownMenu>
-                      <DropdownItem onPress={() => abrirModalEditar(t)} key={''}>Editar</DropdownItem>
-                      <DropdownItem onPress={() => eliminar(t.id)} key={''}>Eliminar</DropdownItem>
-                    </DropdownMenu>
-                  </Dropdown>
-                </div>
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Fichas:</span> {t.fichasFormacions?.length ?? 0}
-                </p>
-                <p className="text-xs text-gray-400">ID: {t.id}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
         {/* Modal CRUD */}
         <Modal
           isOpen={isOpen}
@@ -379,6 +333,7 @@ const TituladosPage = () => {
                     value={nombre}
                     onValueChange={setNombre}
                     radius="sm"
+                    autoFocus
                   />
                 </ModalBody>
                 <ModalFooter>
