@@ -1,27 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Table,
-  TableHeader,
-  TableColumn,
-  TableBody,
-  TableRow,
-  TableCell,
-  Input,
-  Button,
-  Dropdown,
-  DropdownMenu,
-  DropdownItem,
-  DropdownTrigger,
-  Pagination,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalHeader,
-  Checkbox,
-  Select,
-  SelectItem,
-  useDisclosure,
-  type SortDescriptor,
+  Table, TableHeader, TableColumn, TableBody, TableRow, TableCell,
+  Input, Button, Dropdown, DropdownMenu, DropdownItem, DropdownTrigger,
+  Pagination, Modal, ModalBody, ModalContent, ModalHeader, Checkbox,
+  Select, SelectItem, useDisclosure, type SortDescriptor,
 } from '@heroui/react';
 import {
   getUsuarios,
@@ -46,22 +28,13 @@ const columns = [
   { name: 'Rol', uid: 'rol', sortable: false },
   { name: 'Acciones', uid: 'actions' },
 ];
+
 const INITIAL_VISIBLE_COLUMNS = [
-  'id',
-  'nombreCompleto',
-  'cedula',
-  'email',
-  'telefono',
-  'area',
-  'ficha',
-  'rol',
-  'actions',
+  'id', 'nombreCompleto', 'cedula', 'email', 'telefono', 'area', 'ficha', 'rol', 'actions',
 ];
 
 const Toast = ({ message }: { message: string }) => (
-  <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow z-50">
-    {message}
-  </div>
+  <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow z-50">{message}</div>
 );
 
 const UsuariosPage = () => {
@@ -74,25 +47,12 @@ const UsuariosPage = () => {
   const [visibleColumns, setVisibleColumns] = useState(new Set(INITIAL_VISIBLE_COLUMNS));
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [page, setPage] = useState(1);
-  const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
-    column: 'id',
-    direction: 'ascending',
-  });
-
-  // Control del modal con useDisclosure
+  const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({ column: 'id', direction: 'ascending' });
   const { isOpen, onOpen, onClose, onOpenChange } = useDisclosure();
 
   const [form, setForm] = useState({
-    nombre: '',
-    apellido: '',
-    cedula: '',
-    email: '',
-    telefono: '',
-    cargo: '',
-    password: '',
-    idArea: '',
-    idFicha: '',
-    idRol: '',
+    nombre: '', apellido: '', cedula: '', email: '', telefono: '', cargo: '', password: '',
+    idArea: '', idFicha: '', idRol: '',
   });
   const [editId, setEditId] = useState<number | null>(null);
 
@@ -102,25 +62,41 @@ const UsuariosPage = () => {
     setTimeout(() => setToastMsg(''), 3000);
   };
 
+  function extractArray<T>(response: T | { data: T }): T {
+    if (response && typeof response === 'object' && 'data' in response) {
+      return (response as any).data;
+    }
+    return response;
+  }
+
   useEffect(() => {
     cargarDatos();
   }, []);
 
   const cargarDatos = async () => {
     try {
-      const [u, a, f, r] = await Promise.all([
+      const [uRaw, aRaw, fRaw, rRaw] = await Promise.all([
         getUsuarios(),
         getAreas(),
         getFichasFormacion(),
         getRoles(),
       ]);
-      setUsuarios(u);
-      setAreas(a);
-      setFichas(f);
-      setRoles(r);
-    } catch (err) {
-      console.error('Error cargando datos', err);
+      const u = extractArray(uRaw);
+      const a = extractArray(aRaw);
+      const f = extractArray(fRaw);
+      const r = extractArray(rRaw);
+
+      setUsuarios(Array.isArray(u) ? u : []);
+      setAreas(Array.isArray(a) ? a : []);
+      setFichas(Array.isArray(f) ? f : []);
+      setRoles(Array.isArray(r) ? r : []);
+    } catch (error) {
+      console.error('Error cargando datos', error);
       notify('Error cargando datos');
+      setUsuarios([]);
+      setAreas([]);
+      setFichas([]);
+      setRoles([]);
     }
   };
 
@@ -140,21 +116,22 @@ const UsuariosPage = () => {
       notify('El nombre es obligatorio');
       return;
     }
-    if (!form.idArea || !form.idFicha || !form.idRol) {
-      notify('Debes seleccionar Área, Ficha y Rol');
+    if (!form.idArea || !form.idRol) {
+      notify('Debes seleccionar Área y Rol');
       return;
     }
+
+    // Ningún rol requiere ficha obligatoriamente; puede ser null
+    const rolNum = Number(form.idRol);
+    // Solo validar ficha si quieres que sea obligatorio para todos excepto por ejemplo rol 4
+    // sino comentarlo o eliminarlo
+    // if (rolNum !== 4 && !form.idFicha) {
+    //   notify('Debes seleccionar la Ficha para este rol');
+    //   return;
+    // }
+
     if (!editId && !form.password.trim()) {
       notify('La contraseña es obligatoria para crear usuario');
-      return;
-    }
-
-    const areaObj = areas.find(a => String(a.id) === form.idArea);
-    const fichaObj = fichas.find(f => String(f.id) === form.idFicha);
-    const rolObj = roles.find(r => String(r.id) === form.idRol);
-
-    if (!areaObj || !fichaObj || !rolObj) {
-      notify('Selección inválida de Área, Ficha o Rol');
       return;
     }
 
@@ -165,14 +142,12 @@ const UsuariosPage = () => {
       email: form.email || null,
       telefono: form.telefono || null,
       cargo: form.cargo || null,
-      idArea: areaObj,
-      idFichaFormacion: fichaObj,
-      rol: rolObj,
+      id_area: Number(form.idArea),
+      id_rol: rolNum,
+      id_ficha_formacion: form.idFicha ? Number(form.idFicha) : null,
     };
 
-    if (!editId) {
-      payload.password = form.password;
-    }
+    if (!editId) payload.password = form.password;
 
     try {
       if (editId) {
@@ -184,21 +159,12 @@ const UsuariosPage = () => {
       }
       onClose();
       setForm({
-        nombre: '',
-        apellido: '',
-        cedula: '',
-        email: '',
-        telefono: '',
-        cargo: '',
-        password: '',
-        idArea: '',
-        idFicha: '',
-        idRol: '',
+        nombre: '', apellido: '', cedula: '', email: '', telefono: '', cargo: '', password: '',
+        idArea: '', idFicha: '', idRol: '',
       });
       setEditId(null);
       cargarDatos();
     } catch (error: any) {
-      console.error('Error guardando usuario:', error.response || error.message);
       notify(`❌ Error: ${error.response?.data?.message || error.message || 'Servidor'}`);
     }
   };
@@ -213,9 +179,9 @@ const UsuariosPage = () => {
       telefono: u.telefono || '',
       cargo: u.cargo || '',
       password: '',
-      idArea: u.idArea?.id?.toString() || '',
-      idFicha: u.idFichaFormacion?.id?.toString() || '',
-      idRol: u.rol?.id?.toString() || '',
+      idArea: String(u.id_area ?? ''),
+      idFicha: u.id_ficha_formacion != null ? String(u.id_ficha_formacion) : '',
+      idRol: String(u.id_rol ?? ''),
     });
     onOpen();
   };
@@ -223,9 +189,7 @@ const UsuariosPage = () => {
   const filtered = useMemo(() => {
     if (!filterValue) return usuarios;
     return usuarios.filter(u =>
-      `${u.nombre} ${u.apellido ?? ''} ${u.cedula ?? ''} ${u.email ?? ''}`
-        .toLowerCase()
-        .includes(filterValue.toLowerCase()),
+      `${u.nombre} ${u.apellido ?? ''} ${u.cedula ?? ''} ${u.email ?? ''}`.toLowerCase().includes(filterValue.toLowerCase())
     );
   }, [usuarios, filterValue]);
 
@@ -240,6 +204,9 @@ const UsuariosPage = () => {
     const items = [...sliced];
     const { column, direction } = sortDescriptor;
     items.sort((a, b) => {
+      if (column === 'area') return (a.area?.nombre_area ?? '').localeCompare(b.area?.nombre_area ?? '') * (direction === 'ascending' ? 1 : -1);
+      if (column === 'ficha') return (a.ficha_formacion?.nombre ?? '').localeCompare(b.ficha_formacion?.nombre ?? '') * (direction === 'ascending' ? 1 : -1);
+      if (column === 'rol') return (a.rol?.nombre_rol ?? '').localeCompare(b.rol?.nombre_rol ?? '') * (direction === 'ascending' ? 1 : -1);
       const x = a[column];
       const y = b[column];
       return x === y ? 0 : (x > y ? 1 : -1) * (direction === 'ascending' ? 1 : -1);
@@ -249,54 +216,31 @@ const UsuariosPage = () => {
 
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
-      case 'nombreCompleto':
-        return (
-          <span className="font-medium text-gray-800 break-words max-w-[16rem]">
-            {item.nombre} {item.apellido ?? ''}
-          </span>
-        );
-      case 'area':
-        return <span className="text-sm text-gray-600">{item.idArea?.nombreArea ?? '—'}</span>;
-      case 'ficha':
-        return (
-          <span className="text-sm text-gray-600">
-            {item.idFichaFormacion?.nombre ?? '—'}
-          </span>
-        );
-      case 'rol':
-        return <span className="text-sm text-gray-600">{item.rol?.nombreRol ?? '—'}</span>;
-      case 'actions':
-        return (
-          <Dropdown>
-            <DropdownTrigger>
-              <Button
-                isIconOnly
-                size="sm"
-                variant="light"
-                className="rounded-full text-[#0D1324]"
-              >
-                <MoreVertical />
-              </Button>
-            </DropdownTrigger>
-            <DropdownMenu>
-              <DropdownItem key={`editar-${item.id}`} onPress={() => abrirModalEditar(item)}>
-                Editar
-              </DropdownItem>
-              <DropdownItem key={`eliminar-${item.id}`} onPress={() => eliminar(item.id)}>
-                Eliminar
-              </DropdownItem>
-            </DropdownMenu>
-          </Dropdown>
-        );
-      default:
-        return item[columnKey as keyof typeof item] ?? '—';
+      case 'nombreCompleto': return <span>{item.nombre} {item.apellido ?? ''}</span>;
+      case 'area': return <span>{item.area?.nombre_area ?? '—'}</span>;
+      case 'ficha': return <span>{item.ficha_formacion?.nombre ?? '—'}</span>;
+      case 'rol': return <span>{item.rol?.nombre_rol ?? '—'}</span>;
+      case 'actions': return (
+        <Dropdown>
+          <DropdownTrigger>
+            <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
+              <MoreVertical />
+            </Button>
+          </DropdownTrigger>
+          <DropdownMenu>
+            <DropdownItem onPress={() => abrirModalEditar(item)} key="editar">Editar</DropdownItem>
+            <DropdownItem onPress={() => eliminar(item.id)} key="eliminar">Eliminar</DropdownItem>
+          </DropdownMenu>
+        </Dropdown>
+      );
+      default: return item[columnKey] ?? '—';
     }
   };
 
   const toggleColumn = (key: string) => {
     setVisibleColumns(prev => {
       const copy = new Set(prev);
-      if (copy.has(key)) copy.delete(key);
+      if(copy.has(key)) copy.delete(key);
       else copy.add(key);
       return copy;
     });
@@ -307,9 +251,7 @@ const UsuariosPage = () => {
       {toastMsg && <Toast message={toastMsg} />}
       <div className="p-6 space-y-6">
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">
-            👥 Gestión de Usuarios
-          </h1>
+          <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">👥 Gestión de Usuarios</h1>
           <p className="text-sm text-gray-600">Consulta y administra los usuarios registrados.</p>
         </header>
 
@@ -332,23 +274,19 @@ const UsuariosPage = () => {
                   />
                   <div className="flex gap-3">
                     <Dropdown>
-                      <DropdownTrigger>
-                        <Button variant="flat">Columnas</Button>
-                      </DropdownTrigger>
+                      <DropdownTrigger><Button variant="flat">Columnas</Button></DropdownTrigger>
                       <DropdownMenu aria-label="Seleccionar columnas">
-                        {columns
-                          .filter(c => c.uid !== 'actions')
-                          .map(col => (
-                            <DropdownItem key={col.uid} className="py-1 px-2">
-                              <Checkbox
-                                isSelected={visibleColumns.has(col.uid)}
-                                onValueChange={() => toggleColumn(col.uid)}
-                                size="sm"
-                              >
-                                {col.name}
-                              </Checkbox>
-                            </DropdownItem>
-                          ))}
+                        {columns.filter(c => c.uid !== "actions").map(col => (
+                          <DropdownItem key={col.uid} className="py-1 px-2">
+                            <Checkbox
+                              isSelected={visibleColumns.has(col.uid)}
+                              onValueChange={() => toggleColumn(col.uid)}
+                              size="sm"
+                            >
+                              {col.name}
+                            </Checkbox>
+                          </DropdownItem>
+                        ))}
                       </DropdownMenu>
                     </Dropdown>
                     <Button
@@ -357,16 +295,8 @@ const UsuariosPage = () => {
                       onPress={() => {
                         setEditId(null);
                         setForm({
-                          nombre: '',
-                          apellido: '',
-                          cedula: '',
-                          email: '',
-                          telefono: '',
-                          cargo: '',
-                          password: '',
-                          idArea: '',
-                          idFicha: '',
-                          idRol: '',
+                          nombre: '', apellido: '', cedula: '', email: '', telefono: '', cargo: '', password: '',
+                          idArea: '', idFicha: '', idRol: '',
                         });
                         onOpen();
                       }}
@@ -382,15 +312,10 @@ const UsuariosPage = () => {
                     <select
                       className="bg-transparent outline-none text-default-600 ml-1"
                       value={rowsPerPage}
-                      onChange={e => {
-                        setRowsPerPage(parseInt(e.target.value, 10));
-                        setPage(1);
-                      }}
+                      onChange={e => { setRowsPerPage(Number(e.target.value)); setPage(1); }}
                     >
                       {[5, 10, 15].map(n => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
+                        <option key={n} value={n}>{n}</option>
                       ))}
                     </select>
                   </label>
@@ -399,29 +324,18 @@ const UsuariosPage = () => {
             }
             bottomContent={
               <div className="py-2 px-2 flex justify-center items-center gap-2">
-                <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
-                  Anterior
-                </Button>
+                <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>Anterior</Button>
                 <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
-                <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>
-                  Siguiente
-                </Button>
+                <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>Siguiente</Button>
               </div>
             }
             sortDescriptor={sortDescriptor}
             onSortChange={setSortDescriptor}
-            classNames={{
-              th: 'py-3 px-4 bg-[#e8ecf4] text-[#0D1324] font-semibold text-sm',
-              td: 'align-middle py-3 px-4',
-            }}
+            classNames={{ th: 'py-3 px-4 bg-[#e8ecf4] text-[#0D1324] font-semibold text-sm', td: 'align-middle py-3 px-4' }}
           >
             <TableHeader columns={columns.filter(c => visibleColumns.has(c.uid))}>
               {col => (
-                <TableColumn
-                  key={col.uid}
-                  align={col.uid === 'actions' ? 'center' : 'start'}
-                  width={col.uid === 'nombreCompleto' ? 260 : undefined}
-                >
+                <TableColumn key={col.uid} align={col.uid === "actions" ? 'center' : 'start'} width={col.uid === 'nombreCompleto' ? 260 : undefined} allowsSorting={col.sortable}>
                   {col.name}
                 </TableColumn>
               )}
@@ -436,112 +350,37 @@ const UsuariosPage = () => {
           </Table>
         </div>
 
-        <Modal
-          isOpen={isOpen}
-          onOpenChange={onOpenChange}
-          placement="center"
-          className="backdrop-blur-sm bg-black/30"
-          isDismissable={false}
-        >
+        <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" className="backdrop-blur-sm bg-black/30" isDismissable={false}>
           <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl max-w-3xl w-full p-8">
             {(onCloseLocal) => (
               <>
-                <ModalHeader className="mb-4 text-xl font-semibold text-[#0D1324]">
-                  {editId ? 'Editar Usuario' : 'Nuevo Usuario'}
-                </ModalHeader>
+                <ModalHeader className="mb-4 text-xl font-semibold text-[#0D1324]">{editId ? 'Editar Usuario' : 'Nuevo Usuario'}</ModalHeader>
                 <ModalBody>
-                  <form
-                    className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4"
-                    onSubmit={e => {
-                      e.preventDefault();
-                      guardar();
-                    }}
-                  >
-                    <Input
-                      label="Nombre"
-                      value={form.nombre}
-                      onValueChange={v => setForm(p => ({ ...p, nombre: v }))}
-                      radius="sm"
-                      required
-                    />
-                    <Input
-                      label="Apellido"
-                      value={form.apellido}
-                      onValueChange={v => setForm(p => ({ ...p, apellido: v }))}
-                      radius="sm"
-                    />
-                    <Input
-                      label="Cédula"
-                      value={form.cedula}
-                      onValueChange={v => setForm(p => ({ ...p, cedula: v }))}
-                      radius="sm"
-                    />
-                    <Input
-                      label="Email"
-                      type="email"
-                      value={form.email}
-                      onValueChange={v => setForm(p => ({ ...p, email: v }))}
-                      radius="sm"
-                    />
-                    <Input
-                      label="Teléfono"
-                      value={form.telefono}
-                      onValueChange={v => setForm(p => ({ ...p, telefono: v }))}
-                      radius="sm"
-                    />
-                    <Input
-                      label="Cargo"
-                      value={form.cargo}
-                      onValueChange={v => setForm(p => ({ ...p, cargo: v }))}
-                      radius="sm"
-                    />
-                    {!editId && (
-                      <Input
-                        label="Contraseña"
-                        type="password"
-                        value={form.password}
-                        onValueChange={v => setForm(p => ({ ...p, password: v }))}
-                        radius="sm"
-                        required
-                      />
-                    )}
-                    <Select
-                      label="Área"
-                      selectedKeys={form.idArea ? new Set([form.idArea]) : new Set()}
-                      onSelectionChange={k => setForm(p => ({ ...p, idArea: String(Array.from(k)[0]) }))}
-                      radius="sm"
-                    >
-                      {areas.map(a => (
-                        <SelectItem key={a.id}>{a.nombreArea}</SelectItem>
-                      ))}
+                  <form className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4" onSubmit={e => { e.preventDefault(); guardar(); }}>
+                    <Input label="Nombre" value={form.nombre} onValueChange={v => setForm(p => ({ ...p, nombre: v }))} radius="sm" required />
+                    <Input label="Apellido" value={form.apellido} onValueChange={v => setForm(p => ({ ...p, apellido: v }))} radius="sm" />
+                    <Input label="Cédula" value={form.cedula} onValueChange={v => setForm(p => ({ ...p, cedula: v }))} radius="sm" />
+                    <Input label="Email" type="email" value={form.email} onValueChange={v => setForm(p => ({ ...p, email: v }))} radius="sm" />
+                    <Input label="Teléfono" value={form.telefono} onValueChange={v => setForm(p => ({ ...p, telefono: v }))} radius="sm" />
+                    <Input label="Cargo" value={form.cargo} onValueChange={v => setForm(p => ({ ...p, cargo: v }))} radius="sm" />
+                    {!editId && (<Input label="Contraseña" type="password" value={form.password} onValueChange={v => setForm(p => ({ ...p, password: v }))} radius="sm" required />)}
+
+                    <Select label="Rol" selectedKeys={form.idRol ? new Set([form.idRol]) : new Set()} onSelectionChange={k => setForm(p => ({ ...p, idRol: String(Array.from(k)[0]) }))} radius="sm">
+                      {roles.length ? roles.map(r => <SelectItem key={r.id}>{r.nombre_rol}</SelectItem>) : <SelectItem key="empty" isDisabled>No hay roles</SelectItem>}
                     </Select>
-                    <Select
-                      label="Ficha de Formación"
-                      selectedKeys={form.idFicha ? new Set([form.idFicha]) : new Set()}
-                      onSelectionChange={k => setForm(p => ({ ...p, idFicha: String(Array.from(k)[0]) }))}
-                      radius="sm"
-                    >
-                      {fichas.map(f => (
-                        <SelectItem key={f.id}>{f.nombre}</SelectItem>
-                      ))}
+
+                    <Select label="Área" selectedKeys={form.idArea ? new Set([form.idArea]) : new Set()} onSelectionChange={k => setForm(p => ({ ...p, idArea: String(Array.from(k)[0]) }))} radius="sm">
+                      {areas.length ? areas.map(a => <SelectItem key={a.id}>{a.nombre_area}</SelectItem>) : <SelectItem key="empty" isDisabled>No hay áreas</SelectItem>}
                     </Select>
-                    <Select
-                      label="Rol"
-                      selectedKeys={form.idRol ? new Set([form.idRol]) : new Set()}
-                      onSelectionChange={k => setForm(p => ({ ...p, idRol: String(Array.from(k)[0]) }))}
-                      radius="sm"
-                    >
-                      {roles.map(r => (
-                        <SelectItem key={r.id}>{r.nombreRol}</SelectItem>
-                      ))}
+
+                    <Select label="Ficha de Formación" selectedKeys={form.idFicha ? new Set([form.idFicha]) : new Set()} onSelectionChange={k => setForm(p => ({ ...p, idFicha: String(Array.from(k)[0]) }))} radius="sm">
+                      <SelectItem key="null">Sin ficha</SelectItem>
+                      {fichas.length ? fichas.map(f => <SelectItem key={f.id}>{f.nombre}</SelectItem>) : <SelectItem key="empty" isDisabled>No hay fichas</SelectItem>}
                     </Select>
+
                     <div className="md:col-span-2 flex justify-end gap-3 mt-2">
-                      <Button variant="light" onPress={onCloseLocal} type="button">
-                        Cancelar
-                      </Button>
-                      <Button variant="flat" type="submit">
-                        {editId ? 'Actualizar' : 'Crear'}
-                      </Button>
+                      <Button variant="light" onPress={onCloseLocal} type="button">Cancelar</Button>
+                      <Button variant="flat" type="submit">{editId ? 'Actualizar' : 'Crear'}</Button>
                     </div>
                   </form>
                 </ModalBody>

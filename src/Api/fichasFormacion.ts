@@ -1,7 +1,7 @@
 import axios from "axios";
 import { FichaFormacion } from "@/types/types/FichaFormacion";
 
-const API_URL = "http://localhost:3000/fichas-formacion";
+const API_URL = "http://127.0.0.1:8000/api/fichas-formacion";
 
 // Configuración global para permitir el envío de cookies/sesiones
 const config = {
