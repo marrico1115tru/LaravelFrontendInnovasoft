@@ -3,27 +3,25 @@ import { FichaFormacion } from "@/types/types/FichaFormacion";
 
 const API_URL = "http://127.0.0.1:8000/api/fichas-formacion";
 
-// Configuración global para permitir el envío de cookies/sesiones
-const config = {
-  withCredentials: true,
-};
+const config = { withCredentials: true };
 
 export const getFichasFormacion = async (): Promise<FichaFormacion[]> => {
-  const res = await axios.get(API_URL, config);
-  return res.data;
+  try {
+    const res = await axios.get(API_URL, config);
+    if (res.data && Array.isArray(res.data.data)) return res.data.data;
+    if (Array.isArray(res.data)) return res.data;
+    return [];
+  } catch (error) {
+    throw error;
+  }
 };
 
-export const createFichaFormacion = async (
-  data: Partial<FichaFormacion>
-): Promise<FichaFormacion> => {
+export const createFichaFormacion = async (data: Partial<FichaFormacion>): Promise<FichaFormacion> => {
   const res = await axios.post(API_URL, data, config);
   return res.data;
 };
 
-export const updateFichaFormacion = async (
-  id: number,
-  data: Partial<FichaFormacion>
-): Promise<FichaFormacion> => {
+export const updateFichaFormacion = async (id: number, data: Partial<FichaFormacion>): Promise<FichaFormacion> => {
   const res = await axios.put(`${API_URL}/${id}`, data, config);
   return res.data;
 };

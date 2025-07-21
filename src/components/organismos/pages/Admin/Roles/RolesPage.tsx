@@ -18,17 +18,15 @@ const Toast = ({ message }: { message: string }) => (
   </div>
 );
 
+// ❌ Quitamos usuarios y permisos
 const columns = [
   { name: 'ID', uid: 'id', sortable: true },
   { name: 'Rol', uid: 'rol', sortable: false },
-  { name: 'Usuarios', uid: 'usuarios', sortable: false },
-  { name: 'Permisos', uid: 'permisos', sortable: false },
   { name: 'Acciones', uid: 'actions' },
 ];
-const INITIAL_VISIBLE_COLUMNS = ['id', 'rol', 'usuarios', 'permisos', 'actions'];
+const INITIAL_VISIBLE_COLUMNS = ['id', 'rol', 'actions'];
 
 const RolesPage = () => {
-  // Estado datos y UI
   const [roles, setRoles] = useState<any[]>([]);
   const [filterValue, setFilterValue] = useState('');
   const [visibleColumns, setVisibleColumns] = useState(new Set(INITIAL_VISIBLE_COLUMNS));
@@ -49,7 +47,6 @@ const RolesPage = () => {
     setTimeout(() => setToastMsg(''), 3000);
   };
 
-  // Carga inicial de roles
   useEffect(() => {
     cargarRoles();
   }, []);
@@ -63,7 +60,6 @@ const RolesPage = () => {
     }
   };
 
-  // CRUD
   const eliminar = async (id: number) => {
     if (!window.confirm('¿Eliminar rol? No se podrá recuperar.')) return;
     await deleteRol(id);
@@ -105,7 +101,6 @@ const RolesPage = () => {
     setNombreRol('');
   };
 
-  // Filtrado, paginación y orden
   const filtered = useMemo(() => {
     if (!filterValue) return roles;
     return roles.filter((r) =>
@@ -139,10 +134,6 @@ const RolesPage = () => {
             {item.nombreRol}
           </span>
         );
-      case 'usuarios':
-        return <span className="text-sm text-gray-600">{item.usuarios?.length || 0}</span>;
-      case 'permisos':
-        return <span className="text-sm text-gray-600">{item.permisos?.length || 0}</span>;
       case 'actions':
         return (
           <Dropdown>
@@ -259,17 +250,13 @@ const RolesPage = () => {
     <DefaultLayout>
       {toastMsg && <Toast message={toastMsg} />}
       <div className="p-6 space-y-6">
-        {/* Encabezado */}
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">
             🛡️ Gestión de Roles
           </h1>
-          <p className="text-sm text-gray-600">
-            Consulta y administra los roles y sus permisos.
-          </p>
+          <p className="text-sm text-gray-600">Consulta y administra los roles.</p>
         </header>
 
-        {/* Tabla desktop */}
         <div className="hidden md:block rounded-xl shadow-sm bg-white overflow-x-auto">
           <Table
             aria-label="Tabla de roles"
@@ -337,12 +324,6 @@ const RolesPage = () => {
                     </DropdownMenu>
                   </Dropdown>
                 </div>
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Usuarios:</span> {r.usuarios?.length || 0}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Permisos:</span> {r.permisos?.length || 0}
-                </p>
                 <p className="text-xs text-gray-400">ID: {r.id}</p>
               </CardContent>
             </Card>
@@ -350,12 +331,7 @@ const RolesPage = () => {
         </div>
 
         {/* Modal CRUD */}
-        <Modal
-          isOpen={isOpen}
-          onOpenChange={onOpenChange}
-          placement="center"
-          className="backdrop-blur-sm bg-black/30"
-        >
+        <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center">
           <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl">
             {(onCloseLocal) => (
               <>

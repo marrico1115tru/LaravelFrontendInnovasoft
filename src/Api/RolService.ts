@@ -11,7 +11,7 @@ export const getRoles = async (): Promise<Rol[]> => {
   const res = await axios.get(API_URL, config);
   return res.data.data.map((r: any) => ({
     ...r,
-    nombreRol: r.nombre_rol, // ✅ transformación para el frontend
+    nombreRol: r.nombre_rol, 
   }));
 };
 
