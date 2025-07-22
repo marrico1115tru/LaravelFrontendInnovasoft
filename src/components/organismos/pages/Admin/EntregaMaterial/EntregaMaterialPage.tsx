@@ -31,18 +31,9 @@ import {
 import { getFichasFormacion } from '@/Api/fichasFormacion';
 import { getSolicitudes } from '@/Api/Solicitudes';
 import { getUsuarios } from '@/Api/Usuariosform';
-import { getPermisosPorRuta } from '@/Api/getPermisosPorRuta/PermisosService';
 import DefaultLayout from '@/layouts/default';
 import { PlusIcon, MoreVertical, Search as SearchIcon } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-
-const ID_ROL_ACTUAL = 1; // Ajusta según tu sistema de autenticación
-
-const Toast = ({ message }: { message: string }) => (
-  <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow z-50">
-    {message}
-  </div>
-);
 
 const columns = [
   { name: 'ID', uid: 'id', sortable: true },
@@ -70,24 +61,13 @@ const EntregaMaterialPage = () => {
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [filterValue, setFilterValue] = useState('');
-  const [visibleColumns, setVisibleColumns] = useState(
-    new Set(INITIAL_VISIBLE_COLUMNS)
-  );
+  const [visibleColumns, setVisibleColumns] = useState(new Set(INITIAL_VISIBLE_COLUMNS));
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [page, setPage] = useState(1);
   const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
     column: 'id',
     direction: 'ascending',
   });
-
-  /* Permisos y estado de carga */
-  const [permisos, setPermisos] = useState({
-    puedeVer: false,
-    puedeCrear: false,
-    puedeEditar: false,
-    puedeEliminar: false,
-  });
-  const [loadingPermisos, setLoadingPermisos] = useState(true);
 
   /* Formulario modal */
   const [fechaEntrega, setFechaEntrega] = useState('');
@@ -105,30 +85,9 @@ const EntregaMaterialPage = () => {
     setTimeout(() => setToastMsg(''), 3000);
   };
 
-  /* Carga inicial de permisos y datos */
+  /* Carga inicial de datos */
   useEffect(() => {
-    const initPage = async () => {
-      setLoadingPermisos(true);
-      try {
-        const p = await getPermisosPorRuta('/EntregaMaterialPage', ID_ROL_ACTUAL);
-        setPermisos(p.data || p); // Asegura compatibilidad con { data: ... } o solo el objeto
-        if ((p.data || p).puedeVer) {
-          await cargarDatos();
-        }
-      } catch (error) {
-        console.error('Error cargando permisos:', error);
-        setPermisos({
-          puedeVer: false,
-          puedeCrear: false,
-          puedeEditar: false,
-          puedeEliminar: false,
-        });
-      } finally {
-        setLoadingPermisos(false);
-      }
-    };
-    initPage();
-    // eslint-disable-next-line
+    cargarDatos();
   }, []);
 
   const cargarDatos = async () => {
@@ -145,15 +104,12 @@ const EntregaMaterialPage = () => {
       setUsuarios(usrs);
     } catch (err) {
       console.error('Error cargando datos', err);
+      notify('Error cargando datos');
     }
   };
 
-  /* CRUD con protección de permisos */
+  /* Funciones para crear, actualizar y eliminar */
   const eliminar = async (id: number) => {
-    if (!permisos.puedeEliminar) {
-      notify('No tienes permiso para eliminar');
-      return;
-    }
     if (!confirm('¿Eliminar entrega? No se podrá recuperar.')) return;
     try {
       await deleteEntregaMaterial(id);
@@ -166,20 +122,11 @@ const EntregaMaterialPage = () => {
   };
 
   const guardar = async () => {
-    if (editId && !permisos.puedeEditar) {
-      notify('No tienes permiso para editar');
-      return;
-    }
-    if (!editId && !permisos.puedeCrear) {
-      notify('No tienes permiso para crear');
-      return;
-    }
-    // Validaciones básicas del formulario
+    // Validaciones básicas
     if (!fechaEntrega || !idFicha || !idSolicitud || !idResponsable) {
       notify('Completa todos los campos obligatorios');
       return;
     }
-
     const payload = {
       fechaEntrega,
       observaciones: observaciones || null,
@@ -205,10 +152,6 @@ const EntregaMaterialPage = () => {
   };
 
   const abrirModalEditar = (e: any) => {
-    if (!permisos.puedeEditar) {
-      notify('No tienes permiso para editar');
-      return;
-    }
     setEditId(e.id);
     setFechaEntrega(e.fechaEntrega);
     setObservaciones(e.observaciones || '');
@@ -270,57 +213,32 @@ const EntregaMaterialPage = () => {
       case 'fecha':
         return <span className="text-sm text-gray-800">{item.fechaEntrega}</span>;
       case 'observaciones':
-        return (
-          <span className="text-sm text-gray-600 break-words max-w-[16rem]">
-            {item.observaciones || '—'}
-          </span>
-        );
+        return <span className="text-sm text-gray-600 break-words max-w-[16rem]">{item.observaciones || '—'}</span>;
       case 'ficha':
-        return (
-          <span className="text-sm text-gray-600">
-            {item.idFichaFormacion?.nombre || '—'}
-          </span>
-        );
+        return <span className="text-sm text-gray-600">{item.idFichaFormacion?.nombre || '—'}</span>;
       case 'solicitud':
-        return (
-          <span className="text-sm text-gray-600">
-            {item.idSolicitud?.estadoSolicitud || '—'}
-          </span>
-        );
+        return <span className="text-sm text-gray-600">{item.idSolicitud?.estadoSolicitud || '—'}</span>;
       case 'responsable':
         return (
           <span className="text-sm text-gray-600">
-            {item.idUsuarioResponsable
-              ? `${item.idUsuarioResponsable.nombre} ${item.idUsuarioResponsable.apellido}`
-              : '—'}
+            {item.idUsuarioResponsable ? `${item.idUsuarioResponsable.nombre} ${item.idUsuarioResponsable.apellido}` : '—'}
           </span>
         );
       case 'actions':
-        // No renderiza acciones si no hay permisos de edición o eliminación
-        if (!permisos.puedeEditar && !permisos.puedeEliminar) return null;
         return (
           <Dropdown>
             <DropdownTrigger>
-              <Button
-                isIconOnly
-                size="sm"
-                variant="light"
-                className="rounded-full text-[#0D1324]"
-              >
+              <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
                 <MoreVertical />
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              {permisos.puedeEditar ? (
-                <DropdownItem onPress={() => abrirModalEditar(item)} key={`editar-${item.id}`}>
-                  Editar
-                </DropdownItem>
-              ) : null}
-              {permisos.puedeEliminar ? (
-                <DropdownItem onPress={() => eliminar(item.id)} key={`eliminar-${item.id}`}>
-                  Eliminar
-                </DropdownItem>
-              ) : null}
+              <DropdownItem onPress={() => abrirModalEditar(item)} key={`editar-${item.id}`}>
+                Editar
+              </DropdownItem>
+              <DropdownItem onPress={() => eliminar(item.id)} key={`eliminar-${item.id}`}>
+                Eliminar
+              </DropdownItem>
             </DropdownMenu>
           </Dropdown>
         );
@@ -337,7 +255,7 @@ const EntregaMaterialPage = () => {
     });
   };
 
-  /* Contenido superior de la tabla */
+  /* Contenido superior */
   const topContent = (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
@@ -372,24 +290,20 @@ const EntregaMaterialPage = () => {
                 ))}
             </DropdownMenu>
           </Dropdown>
-          {permisos.puedeCrear && ( // Botón "Nueva Entrega" visible solo con permiso de crear
-            <Button
-              className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
-              endContent={<PlusIcon />}
-              onPress={() => {
-                limpiarFormulario();
-                onOpen();
-              }}
-            >
-              Nueva Entrega
-            </Button>
-          )}
+          <Button
+            className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
+            endContent={<PlusIcon />}
+            onPress={() => {
+              limpiarFormulario();
+              onOpen();
+            }}
+          >
+            Nueva Entrega
+          </Button>
         </div>
       </div>
       <div className="flex items-center justify-between">
-        <span className="text-default-400 text-sm">
-          Total {entregas.length} entregas
-        </span>
+        <span className="text-default-400 text-sm">Total {entregas.length} entregas</span>
         <label className="flex items-center text-default-400 text-sm">
           Filas por página:&nbsp;
           <select
@@ -411,63 +325,31 @@ const EntregaMaterialPage = () => {
     </div>
   );
 
-  /* Contenido inferior de la tabla (paginación) */
+  /* Contenido inferior */
   const bottomContent = (
     <div className="py-2 px-2 flex justify-center items-center gap-2">
       <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
         Anterior
       </Button>
       <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
-      <Button
-        size="sm"
-        variant="flat"
-        isDisabled={page === pages}
-        onPress={() => setPage(page + 1)}
-      >
+      <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>
         Siguiente
       </Button>
     </div>
   );
 
-  /* Renderizado condicional basado en permisos y carga */
-  if (loadingPermisos) {
-    return (
-      <DefaultLayout>
-        <div className="p-6 flex justify-center items-center h-64">
-          <span className="text-gray-500 text-lg">Cargando permisos...</span>
-        </div>
-      </DefaultLayout>
-    );
-  }
-
-  if (!permisos.puedeVer) {
-    return (
-      <DefaultLayout>
-        <div className="p-6">
-          <div className="bg-red-100 text-red-700 p-4 rounded shadow text-center">
-            No tienes permiso para ver esta página.
-          </div>
-        </div>
-      </DefaultLayout>
-    );
-  }
-
-  /* Renderizado de la página principal */
   return (
     <DefaultLayout>
       {toastMsg && <Toast message={toastMsg} />}
       <div className="p-6 space-y-6">
-        {/* Encabezado */}
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">
             📦 Entrega de Material
           </h1>
-          <p className="text-sm text-gray-600">
-            Registra y gestiona las entregas a programas y solicitudes.
-          </p>
+          <p className="text-sm text-gray-600">Registra y gestiona las entregas a programas y solicitudes.</p>
         </header>
 
-        {/* Tabla desktop */}
+        {/* Tabla escritorio */}
         <div className="hidden md:block rounded-xl shadow-sm bg-white overflow-x-auto">
           <Table
             aria-label="Tabla de entregas"
@@ -483,11 +365,7 @@ const EntregaMaterialPage = () => {
           >
             <TableHeader columns={columns.filter((c) => visibleColumns.has(c.uid))}>
               {(col) => (
-                <TableColumn
-                  key={col.uid}
-                  align={col.uid === 'actions' ? 'center' : 'start'}
-                  width={col.uid === 'observaciones' ? 300 : undefined}
-                >
+                <TableColumn key={col.uid} align={col.uid === 'actions' ? 'center' : 'start'} width={col.uid === 'observaciones' ? 300 : undefined}>
                   {col.name}
                 </TableColumn>
               )}
@@ -512,34 +390,21 @@ const EntregaMaterialPage = () => {
               <CardContent className="space-y-2 p-4">
                 <div className="flex justify-between items-start">
                   <h3 className="font-semibold text-lg">Entrega ID {e.id}</h3>
-                  {(permisos.puedeEditar || permisos.puedeEliminar) ? ( // Mostrar Dropdown solo si hay permisos
-                    <Dropdown>
-                      <DropdownTrigger>
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="light"
-                          className="rounded-full text-[#0D1324]"
-                        >
-                          <MoreVertical />
-                        </Button>
-                      </DropdownTrigger>
-                      <DropdownMenu>
-                        {permisos.puedeEditar ? (
-                          <DropdownItem onPress={() => abrirModalEditar(e)} key={`editar-${e.id}`}>
-                            Editar
-                          </DropdownItem>
-                        ) : null}
-                        {permisos.puedeEliminar ? (
-                          <DropdownItem onPress={() => eliminar(e.id)} key={`eliminar-${e.id}`}>
-                            Eliminar
-                          </DropdownItem>
-                        ) : null}
-                      </DropdownMenu>
-                    </Dropdown>
-                  ) : (
-                    null // Si no hay permisos, no renderiza el Dropdown
-                  )}
+                  <Dropdown>
+                    <DropdownTrigger>
+                      <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
+                        <MoreVertical />
+                      </Button>
+                    </DropdownTrigger>
+                    <DropdownMenu>
+                      <DropdownItem onPress={() => abrirModalEditar(e)} key={`editar-${e.id}`}>
+                        Editar
+                      </DropdownItem>
+                      <DropdownItem onPress={() => eliminar(e.id)} key={`eliminar-${e.id}`}>
+                        Eliminar
+                      </DropdownItem>
+                    </DropdownMenu>
+                  </Dropdown>
                 </div>
                 <p className="text-sm text-gray-600">
                   <span className="font-medium">Fecha:</span> {e.fechaEntrega}
@@ -555,9 +420,7 @@ const EntregaMaterialPage = () => {
                 </p>
                 <p className="text-sm text-gray-600">
                   <span className="font-medium">Responsable:</span>{' '}
-                  {e.idUsuarioResponsable
-                    ? `${e.idUsuarioResponsable.nombre} ${e.idUsuarioResponsable.apellido}`
-                    : '—'}
+                  {e.idUsuarioResponsable ? `${e.idUsuarioResponsable.nombre} ${e.idUsuarioResponsable.apellido}` : '—'}
                 </p>
                 <p className="text-xs text-gray-400">ID: {e.id}</p>
               </CardContent>
@@ -571,88 +434,71 @@ const EntregaMaterialPage = () => {
           onOpenChange={onOpenChange}
           placement="center"
           className="backdrop-blur-sm bg-black/30"
+          isDismissable={false}
         >
           <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl">
-            {(onCloseLocal) => (
-              <>
-                <ModalHeader>{editId ? 'Editar Entrega' : 'Nueva Entrega'}</ModalHeader>
-                <ModalBody className="space-y-4">
-                  <Input
-                    label="Fecha de entrega (YYYY-MM-DD)"
-                    placeholder="2025-06-22"
-                    value={fechaEntrega}
-                    onValueChange={setFechaEntrega}
-                    radius="sm"
-                  />
-                  <Input
-                    label="Observaciones"
-                    placeholder="Observaciones (opcional)"
-                    value={observaciones}
-                    onValueChange={setObservaciones}
-                    radius="sm"
-                  />
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">
-                      Ficha Formación
-                    </label>
-                    <select
-                      value={idFicha}
-                      onChange={(e) => setIdFicha(Number(e.target.value) || '')}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Seleccione una ficha</option>
-                      {fichas.map((f: any) => (
-                        <option key={f.id} value={f.id}>
-                          {f.nombre}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">
-                      Solicitud
-                    </label>
-                    <select
-                      value={idSolicitud}
-                      onChange={(e) => setIdSolicitud(Number(e.target.value) || '')}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Seleccione una solicitud</option>
-                      {solicitudes.map((s: any) => (
-                        <option key={s.id} value={s.id}>
-                          {`${s.id} - ${s.estadoSolicitud}`}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">
-                      Responsable
-                    </label>
-                    <select
-                      value={idResponsable}
-                      onChange={(e) => setIdResponsable(Number(e.target.value) || '')}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Seleccione un responsable</option>
-                      {usuarios.map((u: any) => (
-                        <option key={u.id} value={u.id}>
-                          {`${u.nombre} ${u.apellido}`}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </ModalBody>
-                <ModalFooter>
-                  <Button variant="light" onPress={onCloseLocal}>
-                    Cancelar
-                  </Button>
-                  <Button variant="flat" onPress={guardar}>
-                    {editId ? 'Actualizar' : 'Crear'}
-                  </Button>
-                </ModalFooter>
-              </>
-            )}
+            <>
+              <ModalHeader>{editId ? 'Editar Entrega' : 'Nueva Entrega'}</ModalHeader>
+              <ModalBody className="space-y-4">
+                <Input
+                  label="Fecha de entrega (YYYY-MM-DD)"
+                  placeholder="2025-06-22"
+                  value={fechaEntrega}
+                  onValueChange={setFechaEntrega}
+                  radius="sm"
+                />
+                <Input
+                  label="Observaciones"
+                  placeholder="Observaciones (opcional)"
+                  value={observaciones}
+                  onValueChange={setObservaciones}
+                  radius="sm"
+                />
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Ficha Formación</label>
+                  <select
+                    value={idFicha}
+                    onChange={(e) => setIdFicha(Number(e.target.value) || '')}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Seleccione una ficha</option>
+                    {fichas.map((f: any) => (
+                      <option key={f.id} value={f.id}>{f.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Solicitud</label>
+                  <select
+                    value={idSolicitud}
+                    onChange={(e) => setIdSolicitud(Number(e.target.value) || '')}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Seleccione una solicitud</option>
+                    {solicitudes.map((s: any) => (
+                      <option key={s.id} value={s.id}>{`${s.id} - ${s.estadoSolicitud}`}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Responsable</label>
+                  <select
+                    value={idResponsable}
+                    onChange={(e) => setIdResponsable(Number(e.target.value) || '')}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Seleccione un responsable</option>
+                    {usuarios.map((u: any) => (
+                      <option key={u.id} value={u.id}>{`${u.nombre} ${u.apellido}`}</option>
+                    ))}
+                  </select>
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="light" onPress={onClose}>Cancelar</Button>
+                <Button variant="flat" onPress={guardar}>{editId ? 'Actualizar' : 'Crear'}</Button>
+              </ModalFooter>
+            </>
           </ModalContent>
         </Modal>
       </div>

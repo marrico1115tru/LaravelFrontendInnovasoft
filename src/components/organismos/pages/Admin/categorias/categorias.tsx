@@ -1,5 +1,4 @@
 import { useEffect, useState, useMemo } from 'react';
-
 import {
   Table,
   TableHeader,
@@ -31,13 +30,9 @@ import {
   deleteCategoriaProducto,
 } from '@/Api/Categorias';
 
-import { getPermisosPorRuta } from '@/Api/getPermisosPorRuta/PermisosService';
-
 import DefaultLayout from '@/layouts/default';
 import { PlusIcon, MoreVertical, Search as SearchIcon } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-
-const ID_ROL_ACTUAL = 1;
 
 const Toast = ({ message }: { message: string }) => (
   <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow z-50">
@@ -49,11 +44,10 @@ const columns = [
   { name: 'ID', uid: 'id', sortable: true },
   { name: 'Nombre', uid: 'nombre', sortable: false },
   { name: 'UNPSC', uid: 'unpsc', sortable: false },
-  { name: 'Productos', uid: 'productos', sortable: false },
   { name: 'Acciones', uid: 'actions' },
 ];
 
-const INITIAL_VISIBLE_COLUMNS = ['id', 'nombre', 'unpsc', 'productos', 'actions'];
+const INITIAL_VISIBLE_COLUMNS = ['id', 'nombre', 'unpsc', 'actions'];
 
 const CategoriasProductosPage = () => {
   const [categorias, setCategorias] = useState<any[]>([]);
@@ -73,34 +67,9 @@ const CategoriasProductosPage = () => {
   const [toastMsg, setToastMsg] = useState('');
   const { isOpen, onOpenChange, onOpen, onClose } = useDisclosure();
 
-  // Estado permisos
-  const [permisos, setPermisos] = useState({
-    puedeVer: false,
-    puedeCrear: false,
-    puedeEditar: false,
-    puedeEliminar: false,
-  });
-
   const notify = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 3000);
-  };
-
-  
-  useEffect(() => {
-    cargarPermisos();
-  }, []);
-
-  const cargarPermisos = async () => {
-    try {
-      const p = await getPermisosPorRuta('/CategoriasProductosPage', ID_ROL_ACTUAL);
-      setPermisos(p);
-      if (p.puedeVer) {
-        cargarCategorias();
-      }
-    } catch (error) {
-      console.error('Error al cargar permisos:', error);
-    }
   };
 
   const cargarCategorias = async () => {
@@ -109,8 +78,13 @@ const CategoriasProductosPage = () => {
       setCategorias(data);
     } catch (error) {
       console.error('Error al cargar categorías:', error);
+      notify('Error al cargar categorías');
     }
   };
+
+  useEffect(() => {
+    cargarCategorias();
+  }, []);
 
   const eliminar = async (id: number) => {
     if (!confirm('¿Eliminar categoría? No se podrá recuperar.')) return;
@@ -120,6 +94,7 @@ const CategoriasProductosPage = () => {
       cargarCategorias();
     } catch (error) {
       console.error('Error al eliminar categoría:', error);
+      notify('Error al eliminar categoría');
     }
   };
 
@@ -137,6 +112,7 @@ const CategoriasProductosPage = () => {
       cargarCategorias();
     } catch (error) {
       console.error('Error al guardar categoría:', error);
+      notify('Error al guardar categoría');
     }
   };
 
@@ -159,7 +135,7 @@ const CategoriasProductosPage = () => {
       ? categorias.filter(
           (c) =>
             c.nombre.toLowerCase().includes(filterValue.toLowerCase()) ||
-            (c.unpsc || '').toLowerCase().includes(filterValue.toLowerCase())
+            (c.unpsc || '').toLowerCase().includes(filterValue.toLowerCase()),
         )
       : categorias;
   }, [categorias, filterValue]);
@@ -188,10 +164,7 @@ const CategoriasProductosPage = () => {
         return <span className="font-medium text-gray-800">{item.nombre}</span>;
       case 'unpsc':
         return <span className="text-sm text-gray-600">{item.unpsc || '—'}</span>;
-      case 'productos':
-        return <span className="text-sm text-gray-600">{item.productos?.length || 0}</span>;
       case 'actions':
-        if (!permisos.puedeEditar && !permisos.puedeEliminar) return null;
         return (
           <Dropdown>
             <DropdownTrigger>
@@ -200,16 +173,12 @@ const CategoriasProductosPage = () => {
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              {permisos.puedeEditar ? (
-                <DropdownItem key={`editar-${item.id}`} onPress={() => abrirModalEditar(item)}>
-                  Editar
-                </DropdownItem>
-              ) : null}
-              {permisos.puedeEliminar ? (
-                <DropdownItem key={`eliminar-${item.id}`} onPress={() => eliminar(item.id)}>
-                  Eliminar
-                </DropdownItem>
-              ) : null}
+              <DropdownItem key={`editar-${item.id}`} onPress={() => abrirModalEditar(item)}>
+                Editar
+              </DropdownItem>
+              <DropdownItem key={`eliminar-${item.id}`} onPress={() => eliminar(item.id)}>
+                Eliminar
+              </DropdownItem>
             </DropdownMenu>
           </Dropdown>
         );
@@ -224,24 +193,6 @@ const CategoriasProductosPage = () => {
       copy.has(key) ? copy.delete(key) : copy.add(key);
       return copy;
     });
-  };
-
-  if (!permisos.puedeVer) {
-    return (
-      <DefaultLayout>
-        <div className="p-6">
-          <div className="bg-red-100 text-red-700 p-4 rounded shadow text-center">
-            No tienes permiso para ver esta página.
-          </div>
-        </div>
-      </DefaultLayout>
-    );
-  }
-
-  
-  const handleDiegoClick = () => {
-    alert('¡Botón Enviar presionado!');
-   
   };
 
   return (
@@ -294,20 +245,13 @@ const CategoriasProductosPage = () => {
                           ))}
                       </DropdownMenu>
                     </Dropdown>
-                    {permisos.puedeCrear && (
-                      <>
-                        <Button
-                          className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
-                          endContent={<PlusIcon />}
-                          onPress={onOpen}
-                        >
-                          Nueva Categoría
-                        </Button>
-                        <Button color="primary" onPress={handleDiegoClick}>
-                          Holii
-                        </Button>
-                      </>
-                    )}
+                    <Button
+                      className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
+                      endContent={<PlusIcon />}
+                      onPress={onOpen}
+                    >
+                      Nueva Categoría
+                    </Button>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
@@ -352,11 +296,7 @@ const CategoriasProductosPage = () => {
           >
             <TableHeader columns={columns.filter((c) => visibleColumns.has(c.uid))}>
               {(col) => (
-                <TableColumn
-                  key={col.uid}
-                  align={col.uid === 'actions' ? 'center' : 'start'}
-                  width={col.uid === 'nombre' ? 300 : undefined}
-                >
+                <TableColumn key={col.uid} align={col.uid === 'actions' ? 'center' : 'start'} width={col.uid === 'nombre' ? 300 : undefined}>
                   {col.name}
                 </TableColumn>
               )}
@@ -371,7 +311,7 @@ const CategoriasProductosPage = () => {
           </Table>
         </div>
 
-        {/* Tarjetas Móvil */}
+        {/* Móvil */}
         <div className="grid gap-4 md:hidden">
           {sorted.length === 0 && <p className="text-center text-gray-500">No se encontraron categorías</p>}
           {sorted.map((cat) => (
@@ -379,72 +319,37 @@ const CategoriasProductosPage = () => {
               <CardContent className="space-y-2 p-4">
                 <div className="flex justify-between items-start">
                   <h3 className="font-semibold text-lg break-words max-w-[14rem]">{cat.nombre}</h3>
-                  {(permisos.puedeEditar || permisos.puedeEliminar) && (
-                    <Dropdown>
-                      <DropdownTrigger>
-                        <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
-                          <MoreVertical />
-                        </Button>
-                      </DropdownTrigger>
-                      <DropdownMenu>
-                        {permisos.puedeEditar ? (
-                          <DropdownItem key={`editar-${cat.id}`} onPress={() => abrirModalEditar(cat)}>
-                            Editar
-                          </DropdownItem>
-                        ) : null}
-                        {permisos.puedeEliminar ? (
-                          <DropdownItem key={`eliminar-${cat.id}`} onPress={() => eliminar(cat.id)}>
-                            Eliminar
-                          </DropdownItem>
-                        ) : null}
-                      </DropdownMenu>
-                    </Dropdown>
-                  )}
+                  <Dropdown>
+                    <DropdownTrigger>
+                      <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]"><MoreVertical /></Button>
+                    </DropdownTrigger>
+                    <DropdownMenu>
+                      <DropdownItem key={`editar-${cat.id}`} onPress={() => abrirModalEditar(cat)}>Editar</DropdownItem>
+                      <DropdownItem key={`eliminar-${cat.id}`} onPress={() => eliminar(cat.id)}>Eliminar</DropdownItem>
+                    </DropdownMenu>
+                  </Dropdown>
                 </div>
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">UNPSC:</span> {cat.unpsc || '—'}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Productos:</span> {cat.productos?.length || 0}
-                </p>
+                <p className="text-sm text-gray-600"><span className="font-medium">UNPSC:</span> {cat.unpsc || '—'}</p>
                 <p className="text-xs text-gray-400">ID: {cat.id}</p>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        {/* Modal */}
-        <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center">
+        {/* Modal Crear/Editar */}
+        <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" isDismissable>
           <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl">
-            {() => (
-              <>
-                <ModalHeader>{editId ? 'Editar Categoría' : 'Nueva Categoría'}</ModalHeader>
-                <ModalBody className="space-y-4">
-                  <Input
-                    label="Nombre"
-                    placeholder="Nombre de la categoría"
-                    value={nombre}
-                    onValueChange={setNombre}
-                    radius="sm"
-                  />
-                  <Input
-                    label="UNPSC (opcional)"
-                    placeholder="Código UNPSC"
-                    value={unpsc}
-                    onValueChange={setUnpsc}
-                    radius="sm"
-                  />
-                </ModalBody>
-                <ModalFooter>
-                  <Button variant="light" onPress={cerrarModal}>
-                    Cancelar
-                  </Button>
-                  <Button color="primary" onPress={guardar}>
-                    {editId ? 'Actualizar' : 'Crear'}
-                  </Button>
-                </ModalFooter>
-              </>
-            )}
+            <>
+              <ModalHeader>{editId ? 'Editar Categoría' : 'Nueva Categoría'}</ModalHeader>
+              <ModalBody className="space-y-4">
+                <Input label="Nombre" placeholder="Nombre de la categoría" value={nombre} onValueChange={setNombre} radius="sm" />
+                <Input label="UNPSC (opcional)" placeholder="Código UNPSC" value={unpsc} onValueChange={setUnpsc} radius="sm" />
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="light" onPress={cerrarModal}>Cancelar</Button>
+                <Button color="primary" onPress={guardar}>{editId ? 'Actualizar' : 'Crear'}</Button>
+              </ModalFooter>
+            </>
           </ModalContent>
         </Modal>
       </div>

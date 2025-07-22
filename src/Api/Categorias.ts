@@ -1,19 +1,18 @@
-import axios from "axios";
-import {
-  CategoriaProducto,
-  CategoriaProductoFormValues,
-} from "@/types/types/categorias";
+import axios from 'axios';
+import { CategoriaProducto, CategoriaProductoFormValues } from '@/types/types/categorias';
 
-const API_URL = "http://localhost:3000/categorias-productos";
+const API_URL = 'http://localhost:8000/api/categorias-productos';
 
-// Config global para incluir cookies/sesión si es necesario
 const config = {
   withCredentials: true,
 };
 
 export const getCategoriasProductos = async (): Promise<CategoriaProducto[]> => {
   const res = await axios.get(API_URL, config);
-  return res.data;
+  if (Array.isArray(res.data?.data)) return res.data.data;
+  if (Array.isArray(res.data)) return res.data;
+  console.warn('getCategoriasProductos: respuesta inesperada', res.data);
+  return [];
 };
 
 export const createCategoriaProducto = async (
@@ -31,8 +30,6 @@ export const updateCategoriaProducto = async (
   return res.data;
 };
 
-export const deleteCategoriaProducto = async (
-  id: number
-): Promise<void> => {
+export const deleteCategoriaProducto = async (id: number): Promise<void> => {
   await axios.delete(`${API_URL}/${id}`, config);
 };

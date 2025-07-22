@@ -30,18 +30,9 @@ import {
 } from '@/Api/detalles_solicitud';
 import { getProductos } from '@/Api/Productosform';
 import { getSolicitudes } from '@/Api/Solicitudes';
-import { getPermisosPorRuta } from '@/Api/getPermisosPorRuta/PermisosService';
 import DefaultLayout from '@/layouts/default';
 import { PlusIcon, MoreVertical, Search as SearchIcon } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-
-const ID_ROL_ACTUAL = 1;
-
-const Toast = ({ message }: { message: string }) => (
-  <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow z-50">
-    {message}
-  </div>
-);
 
 const columns = [
   { name: 'ID', uid: 'id', sortable: true },
@@ -69,18 +60,7 @@ const DetalleSolicitudesPage = () => {
   const [visibleColumns, setVisibleColumns] = useState(new Set(INITIAL_VISIBLE_COLUMNS));
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [page, setPage] = useState(1);
-  const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
-    column: 'id',
-    direction: 'ascending',
-  });
-
-  const [permisos, setPermisos] = useState({
-    puedeVer: false,
-    puedeCrear: false,
-    puedeEditar: false,
-    puedeEliminar: false,
-  });
-  const [loadingPermisos, setLoadingPermisos] = useState(true);
+  const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({ column: 'id', direction: 'ascending' });
 
   const [cantidad, setCantidad] = useState<number | undefined>(undefined);
   const [observaciones, setObservaciones] = useState('');
@@ -88,36 +68,12 @@ const DetalleSolicitudesPage = () => {
   const [solicitudSeleccionada, setSolicitudSeleccionada] = useState<any | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
 
-  const { isOpen, onOpenChange, onOpen, onClose } = useDisclosure();
+  const { isOpen, onOpen, onClose } = useDisclosure();
+
   const [toastMsg, setToastMsg] = useState('');
   const notify = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 3000);
-  };
-
-  useEffect(() => {
-    cargarPermisos();
-  }, []);
-
-  const cargarPermisos = async () => {
-    setLoadingPermisos(true);
-    try {
-      const p = await getPermisosPorRuta('/DetalleSolicitudPage', ID_ROL_ACTUAL);
-      setPermisos(p.data || p);
-      if ((p.data || p).puedeVer) {
-        cargarDatos();
-      }
-    } catch (error) {
-      console.error('Error cargando permisos:', error);
-      setPermisos({
-        puedeVer: false,
-        puedeCrear: false,
-        puedeEditar: false,
-        puedeEliminar: false,
-      });
-    } finally {
-      setLoadingPermisos(false);
-    }
   };
 
   const cargarDatos = async () => {
@@ -132,11 +88,15 @@ const DetalleSolicitudesPage = () => {
       setSolicitudes(sols);
     } catch (err) {
       console.error('Error cargando datos', err);
+      notify('Error cargando datos');
     }
   };
 
+  useEffect(() => {
+    cargarDatos();
+  }, []);
+
   const eliminar = async (id: number) => {
-    if (!permisos.puedeEliminar) return;
     if (!confirm('¿Eliminar registro? No se podrá recuperar.')) return;
     try {
       await deleteDetalleSolicitud(id);
@@ -148,8 +108,6 @@ const DetalleSolicitudesPage = () => {
   };
 
   const guardar = async () => {
-    if (!permisos.puedeCrear && !permisos.puedeEditar) return;
-
     if (!cantidad || cantidad <= 0) {
       notify('La cantidad solicitada debe ser mayor que cero');
       return;
@@ -163,7 +121,6 @@ const DetalleSolicitudesPage = () => {
       return;
     }
 
-    // Aquí enviamos el objeto completo para cumplir el tipo
     const payload = {
       cantidadSolicitada: cantidad,
       observaciones: observaciones || null,
@@ -178,28 +135,26 @@ const DetalleSolicitudesPage = () => {
 
     try {
       if (editId) {
-        if (!permisos.puedeEditar) return;
         await updateDetalleSolicitud(editId, payload);
         notify('✅ Detalle actualizado');
       } else {
-        if (!permisos.puedeCrear) return;
         await createDetalleSolicitud(payload);
         notify('✅ Detalle creado');
       }
       onClose();
       limpiarFormulario();
       cargarDatos();
-    } catch (e) {
+    } catch {
       notify('Error guardando registro');
     }
   };
 
-  const abrirModalEditar = (d: any) => {
-    setEditId(d.id);
-    setCantidad(d.cantidadSolicitada);
-    setObservaciones(d.observaciones || '');
-    setProductoSeleccionado(d.idProducto);
-    setSolicitudSeleccionada(d.idSolicitud);
+  const abrirModalEditar = (detalle: any) => {
+    setEditId(detalle.id);
+    setCantidad(detalle.cantidadSolicitada);
+    setObservaciones(detalle.observaciones || '');
+    setProductoSeleccionado(detalle.idProducto);
+    setSolicitudSeleccionada(detalle.idSolicitud);
     onOpen();
   };
 
@@ -214,11 +169,7 @@ const DetalleSolicitudesPage = () => {
   const filtered = useMemo(() => {
     return filterValue
       ? detalles.filter((d) =>
-          (
-            `${d.cantidadSolicitada} ${d.observaciones || ''} ${
-              d.idProducto?.nombre || ''
-            } ${d.idSolicitud?.estadoSolicitud || ''}`
-          )
+          `${d.cantidadSolicitada} ${d.observaciones || ''} ${d.idProducto?.nombre || ''} ${d.idSolicitud?.estadoSolicitud || ''}`
             .toLowerCase()
             .includes(filterValue.toLowerCase())
         )
@@ -248,48 +199,26 @@ const DetalleSolicitudesPage = () => {
       case 'cantidadSolicitada':
         return <span className="text-sm text-gray-800">{item.cantidadSolicitada}</span>;
       case 'observaciones':
-        return (
-          <span className="text-sm text-gray-600 break-words max-w-[16rem]">
-            {item.observaciones || '—'}
-          </span>
-        );
+        return <span className="text-sm text-gray-600 break-words max-w-[16rem]">{item.observaciones || '—'}</span>;
       case 'producto':
-        return (
-          <span className="text-sm text-gray-600">
-            {item.idProducto?.nombre || '—'}
-          </span>
-        );
+        return <span className="text-sm text-gray-600">{item.idProducto?.nombre || '—'}</span>;
       case 'solicitud':
-        return (
-          <span className="text-sm text-gray-600">
-            {item.idSolicitud?.estadoSolicitud || '—'}
-          </span>
-        );
+        return <span className="text-sm text-gray-600">{item.idSolicitud?.estadoSolicitud || '—'}</span>;
       case 'actions':
-        if (!permisos.puedeEditar && !permisos.puedeEliminar) return <></>;
         return (
           <Dropdown>
             <DropdownTrigger>
-              <Button
-                isIconOnly
-                size="sm"
-                variant="light"
-                className="rounded-full text-[#0D1324]"
-              >
+              <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
                 <MoreVertical />
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              {permisos.puedeEditar ? (
-                <DropdownItem onPress={() => abrirModalEditar(item)} key={`editar-${item.id}`}>
-                  Editar
-                </DropdownItem>
-              ) : null}
-              {permisos.puedeEliminar ? (
-                <DropdownItem onPress={() => eliminar(item.id)} key={`eliminar-${item.id}`}>
-                  Eliminar
-                </DropdownItem>
-              ) : null}
+              <DropdownItem onPress={() => abrirModalEditar(item)} key={`editar-${item.id}`}>
+                Editar
+              </DropdownItem>
+              <DropdownItem onPress={() => eliminar(item.id)} key={`eliminar-${item.id}`}>
+                Eliminar
+              </DropdownItem>
             </DropdownMenu>
           </Dropdown>
         );
@@ -340,18 +269,16 @@ const DetalleSolicitudesPage = () => {
                 ))}
             </DropdownMenu>
           </Dropdown>
-          {permisos.puedeCrear && (
-            <Button
-              className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
-              endContent={<PlusIcon />}
-              onPress={() => {
-                limpiarFormulario();
-                onOpen();
-              }}
-            >
-              Nuevo Detalle
-            </Button>
-          )}
+          <Button
+            className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
+            endContent={<PlusIcon />}
+            onPress={() => {
+              limpiarFormulario();
+              onOpen();
+            }}
+          >
+            Nuevo Detalle
+          </Button>
         </div>
       </div>
       <div className="flex items-center justify-between">
@@ -383,40 +310,11 @@ const DetalleSolicitudesPage = () => {
         Anterior
       </Button>
       <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
-      <Button
-        size="sm"
-        variant="flat"
-        isDisabled={page === pages}
-        onPress={() => setPage(page + 1)}
-      >
+      <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>
         Siguiente
       </Button>
     </div>
   );
-
-  if (loadingPermisos) {
-    return (
-      <DefaultLayout>
-        <div className="p-6">
-          <div className="bg-blue-100 text-blue-700 p-4 rounded shadow text-center">
-            Cargando permisos...
-          </div>
-        </div>
-      </DefaultLayout>
-    );
-  }
-
-  if (!permisos.puedeVer) {
-    return (
-      <DefaultLayout>
-        <div className="p-6">
-          <div className="bg-red-100 text-red-700 p-4 rounded shadow text-center">
-            No tienes permiso para ver esta página.
-          </div>
-        </div>
-      </DefaultLayout>
-    );
-  }
 
   return (
     <DefaultLayout>
@@ -444,21 +342,13 @@ const DetalleSolicitudesPage = () => {
           >
             <TableHeader columns={columns.filter((c) => visibleColumns.has(c.uid))}>
               {(col) => (
-                <TableColumn
-                  key={col.uid}
-                  align={col.uid === 'actions' ? 'center' : 'start'}
-                  width={col.uid === 'observaciones' ? 300 : undefined}
-                >
+                <TableColumn key={col.uid} align={col.uid === 'actions' ? 'center' : 'start'} width={col.uid === 'observaciones' ? 300 : undefined}>
                   {col.name}
                 </TableColumn>
               )}
             </TableHeader>
             <TableBody items={sorted} emptyContent="No se encontraron registros">
-              {(item) => (
-                <TableRow key={item.id}>
-                  {(col) => <TableCell>{renderCell(item, col as string)}</TableCell>}
-                </TableRow>
-              )}
+              {(item) => <TableRow key={item.id}>{(col) => <TableCell>{renderCell(item, col as string)}</TableCell>}</TableRow>}
             </TableBody>
           </Table>
         </div>
@@ -467,45 +357,37 @@ const DetalleSolicitudesPage = () => {
           {sorted.length === 0 && (
             <p className="text-center text-gray-500">No se encontraron registros</p>
           )}
-          {sorted.map((d) => (
-            <Card key={d.id} className="shadow-sm">
+          {sorted.map((detalle) => (
+            <Card key={detalle.id} className="shadow-sm">
               <CardContent className="space-y-2 p-4">
                 <div className="flex justify-between items-start">
-                  <h3 className="font-semibold text-lg">Cant: {d.cantidadSolicitada}</h3>
-                  {(permisos.puedeEditar || permisos.puedeEliminar) ? (
-                    <Dropdown>
-                      <DropdownTrigger>
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="light"
-                          className="rounded-full text-[#0D1324]"
-                        >
-                          <MoreVertical />
-                        </Button>
-                      </DropdownTrigger>
-                      <DropdownMenu>
-                        {permisos.puedeEditar ? (
-                          <DropdownItem onPress={() => abrirModalEditar(d)} key={`editar-${d.id}`}>Editar</DropdownItem>
-                        ) : null}
-                        {permisos.puedeEliminar ? (
-                          <DropdownItem onPress={() => eliminar(d.id)} key={`eliminar-${d.id}`}>Eliminar</DropdownItem>
-                        ) : null}
-                      </DropdownMenu>
-                    </Dropdown>
-                  ) : <></>}
+                  <h3 className="font-semibold text-lg">Cant: {detalle.cantidadSolicitada}</h3>
+                  <Dropdown>
+                    <DropdownTrigger>
+                      <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
+                        <MoreVertical />
+                      </Button>
+                    </DropdownTrigger>
+                    <DropdownMenu>
+                      <DropdownItem onPress={() => abrirModalEditar(detalle)} key={`editar-${detalle.id}`}>
+                        Editar
+                      </DropdownItem>
+                      <DropdownItem onPress={() => eliminar(detalle.id)} key={`eliminar-${detalle.id}`}>
+                        Eliminar
+                      </DropdownItem>
+                    </DropdownMenu>
+                  </Dropdown>
                 </div>
                 <p className="text-sm text-gray-600 break-words">
-                  <span className="font-medium">Obs:</span> {d.observaciones || '—'}
+                  <span className="font-medium">Observaciones:</span> {detalle.observaciones || '—'}
                 </p>
                 <p className="text-sm text-gray-600">
-                  <span className="font-medium">Producto:</span> {d.idProducto?.nombre || '—'}
+                  <span className="font-medium">Producto:</span> {detalle.idProducto?.nombre || '—'}
                 </p>
                 <p className="text-sm text-gray-600">
-                  <span className="font-medium">Solicitud:</span>{' '}
-                  {d.idSolicitud?.estadoSolicitud || '—'}
+                  <span className="font-medium">Solicitud:</span> {detalle.idSolicitud?.estadoSolicitud || '—'}
                 </p>
-                <p className="text-xs text-gray-400">ID: {d.id}</p>
+                <p className="text-xs text-gray-400">ID: {detalle.id}</p>
               </CardContent>
             </Card>
           ))}
@@ -513,83 +395,82 @@ const DetalleSolicitudesPage = () => {
 
         <Modal
           isOpen={isOpen}
-          onOpenChange={onOpenChange}
+          onOpenChange={onClose}
           placement="center"
           className="backdrop-blur-sm bg-black/30"
+          isDismissable={false}
         >
           <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl">
-            {(onCloseLocal) => (
-              <>
-                <ModalHeader>{editId ? 'Editar Detalle' : 'Nuevo Detalle'}</ModalHeader>
-                <ModalBody className="space-y-4">
-                  <Input
-                    label="Cantidad solicitada"
-                    placeholder="Ej: 10"
-                    type="number"
-                    value={typeof cantidad === 'number' ? cantidad.toString() : ''}
-                    onValueChange={(v) => setCantidad(v ? Number(v) : undefined)}
-                    radius="sm"
-                  />
-                  <Input
-                    label="Observaciones"
-                    placeholder="Observaciones (opcional)"
-                    value={observaciones}
-                    onValueChange={setObservaciones}
-                    radius="sm"
-                  />
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">
-                      Producto
-                    </label>
-                    <select
-                      value={productoSeleccionado?.id || ''}
-                      onChange={(e) => {
-                        const id = Number(e.target.value);
-                        const producto = productos.find((p) => p.id === id) || null;
-                        setProductoSeleccionado(producto);
-                      }}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Seleccione un producto</option>
-                      {productos.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.nombre}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">
-                      Solicitud
-                    </label>
-                    <select
-                      value={solicitudSeleccionada?.id || ''}
-                      onChange={(e) => {
-                        const id = Number(e.target.value);
-                        const solicitud = solicitudes.find((s) => s.id === id) || null;
-                        setSolicitudSeleccionada(solicitud);
-                      }}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Seleccione una solicitud</option>
-                      {solicitudes.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {`${s.id} - ${s.estadoSolicitud}`}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </ModalBody>
-                <ModalFooter>
-                  <Button variant="light" onPress={onCloseLocal}>
-                    Cancelar
-                  </Button>
-                  <Button variant="flat" onPress={guardar}>
-                    {editId ? 'Actualizar' : 'Crear'}
-                  </Button>
-                </ModalFooter>
-              </>
-            )}
+            <>
+              <ModalHeader>{editId ? 'Editar Detalle' : 'Nuevo Detalle'}</ModalHeader>
+              <ModalBody className="space-y-4">
+                <Input
+                  label="Cantidad solicitada"
+                  placeholder="Ej: 10"
+                  type="number"
+                  value={typeof cantidad === 'number' ? cantidad.toString() : ''}
+                  onValueChange={(v) => setCantidad(v ? Number(v) : undefined)}
+                  radius="sm"
+                />
+                <Input
+                  label="Observaciones"
+                  placeholder="Observaciones (opcional)"
+                  value={observaciones}
+                  onValueChange={setObservaciones}
+                  radius="sm"
+                />
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">
+                    Producto
+                  </label>
+                  <select
+                    value={productoSeleccionado?.id || ''}
+                    onChange={(event) => {
+                      const id = Number(event.target.value);
+                      const producto = productos.find((p) => p.id === id) ?? null;
+                      setProductoSeleccionado(producto);
+                    }}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Seleccione un producto</option>
+                    {productos.map((producto) => (
+                      <option key={producto.id} value={producto.id}>
+                        {producto.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">
+                    Solicitud
+                  </label>
+                  <select
+                    value={solicitudSeleccionada?.id || ''}
+                    onChange={(event) => {
+                      const id = Number(event.target.value);
+                      const solicitud = solicitudes.find((s) => s.id === id) ?? null;
+                      setSolicitudSeleccionada(solicitud);
+                    }}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Seleccione una solicitud</option>
+                    {solicitudes.map((solicitud) => (
+                      <option key={solicitud.id} value={solicitud.id}>
+                        {`${solicitud.id} - ${solicitud.estadoSolicitud}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="light" onPress={onClose}>
+                  Cancelar
+                </Button>
+                <Button variant="flat" onPress={guardar}>
+                  {editId ? 'Actualizar' : 'Crear'}
+                </Button>
+              </ModalFooter>
+            </>
           </ModalContent>
         </Modal>
       </div>
