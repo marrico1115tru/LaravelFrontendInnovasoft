@@ -1,16 +1,18 @@
 import axios from 'axios';
 import { Municipio } from '@/types/types/typesMunicipio';
 
-const API_URL = 'http://localhost:3000/municipios';
+const API_URL = 'http://localhost:8000/api/municipios'; // Cambiado al endpoint correcto
 
-// Configuración global para incluir cookies/sesiones
 const config = {
   withCredentials: true,
 };
 
 export const obtenerMunicipios = async (): Promise<Municipio[]> => {
   const res = await axios.get(API_URL, config);
-  return res.data;
+  if (Array.isArray(res.data?.data)) return res.data.data;
+  // Si tu API responde listado directamente en res.data, cambia a: return res.data;
+  console.warn('obtenerMunicipios: respuesta inesperada', res.data);
+  return [];
 };
 
 export const crearMunicipio = async (

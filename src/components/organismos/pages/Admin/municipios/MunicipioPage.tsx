@@ -22,10 +22,9 @@ const columns = [
   { name: 'ID', uid: 'id', sortable: true },
   { name: 'Nombre', uid: 'nombre', sortable: false },
   { name: 'Departamento', uid: 'departamento', sortable: false },
-  { name: 'Centros', uid: 'centros', sortable: false },
   { name: 'Acciones', uid: 'actions' },
 ];
-const INITIAL_VISIBLE_COLUMNS = ['id', 'nombre', 'departamento', 'centros', 'actions'];
+const INITIAL_VISIBLE_COLUMNS = ['id', 'nombre', 'departamento', 'actions'];
 
 const MunicipiosPage = () => {
   const [municipios, setMunicipios] = useState<any[]>([]);
@@ -144,8 +143,6 @@ const MunicipiosPage = () => {
         );
       case 'departamento':
         return <span className="text-sm text-gray-600">{item.departamento}</span>;
-      case 'centros':
-        return <span className="text-sm text-gray-600">{item.centroFormacions?.length || 0}</span>;
       case 'actions':
         return (
           <Dropdown>
@@ -196,19 +193,17 @@ const MunicipiosPage = () => {
               <Button variant="flat">Columnas</Button>
             </DropdownTrigger>
             <DropdownMenu aria-label="Seleccionar columnas">
-              {columns
-                .filter((c) => c.uid !== 'actions')
-                .map((col) => (
-                  <DropdownItem key={col.uid} className="py-1 px-2">
-                    <Checkbox
-                      isSelected={visibleColumns.has(col.uid)}
-                      onValueChange={() => toggleColumn(col.uid)}
-                      size="sm"
-                    >
-                      {col.name}
-                    </Checkbox>
-                  </DropdownItem>
-                ))}
+              {columns.filter((c) => c.uid !== 'actions').map((col) => (
+                <DropdownItem key={col.uid} className="py-1 px-2">
+                  <Checkbox
+                    isSelected={visibleColumns.has(col.uid)}
+                    onValueChange={() => toggleColumn(col.uid)}
+                    size="sm"
+                  >
+                    {col.name}
+                  </Checkbox>
+                </DropdownItem>
+              ))}
             </DropdownMenu>
           </Dropdown>
           <Button
@@ -266,9 +261,7 @@ const MunicipiosPage = () => {
           <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">
             🗺️ Gestión de Municipios
           </h1>
-          <p className="text-sm text-gray-600">
-            Consulta y administra los municipios registrados.
-          </p>
+          <p className="text-sm text-gray-600">Consulta y administra los municipios registrados.</p>
         </header>
 
         <div className="hidden md:block rounded-xl shadow-sm bg-white overflow-x-auto">
@@ -332,10 +325,7 @@ const MunicipiosPage = () => {
                   </Dropdown>
                 </div>
                 <p className="text-sm text-gray-600">
-                  <span className="font-medium">Depto:</span> {m.departamento}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Centros:</span> {m.centroFormacions?.length || 0}
+                  <span className="font-medium">Departamento:</span> {m.departamento}
                 </p>
                 <p className="text-xs text-gray-400">ID: {m.id}</p>
               </CardContent>
