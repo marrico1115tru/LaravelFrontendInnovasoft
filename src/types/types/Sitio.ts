@@ -13,6 +13,7 @@ export interface Sitio {
 }
 
 export interface SitioFormValues {
+  estado: any;
   nombre: string;
   ubicacion: string;
   idArea: {

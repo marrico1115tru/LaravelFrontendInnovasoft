@@ -1,29 +1,19 @@
 import axios from 'axios';
 
-interface LoginResponse {
-  access_token: string;
-  user: {
-    id: number;
-    nombre: string;
-    email: string;
-    rol: string;
-  };
-}
+// Configura Axios por defecto
+const API = axios.create({
+  baseURL: 'http://127.0.0.1:8000/api',
+  withCredentials: true, // Importante para enviar y recibir cookies
+});
 
-export const login = async (email: string, password: string): Promise<LoginResponse> => {
-  const response = await axios.post('http://localhost:3000/auth/login', {
-    email,
-    password,
-  }, {
-    withCredentials: true,
-  });
-
-  return response.data;
+export const login = async (email: string, password: string): Promise<void> => {
+  await API.post('/login', { email, password });
 };
+
+export const logout = async (): Promise<void> => {
+  await API.post('/logout');
+};
+
 export const recuperarPassword = async (email: string): Promise<void> => {
-  await axios.post(
-    'http://localhost:3000/auth/recuperar',
-    { email },
-    { withCredentials: true }
-  );
+  await API.post('/recuperar', { email });
 };
