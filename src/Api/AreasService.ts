@@ -1,28 +1,37 @@
-import axios from 'axios';
+const API_URL = "http://127.0.0.1:8000/api/areas";
 
-const API_URL = 'http://localhost:3000/areas';
+export async function getAreas() {
+  const response = await fetch(API_URL);
+  if (!response.ok) throw new Error("Error al listar áreas");
+  const res = await response.json();
+  return Array.isArray(res) ? res : res.data;
+}
 
+export async function createArea(payload: any) {
+  const response = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    // No agregar credentials porque no usas autenticación
+  });
+  if (!response.ok) throw new Error("Error al crear área");
+  return await response.json();
+}
 
-const config = {
-  withCredentials: true, 
-};
+export async function updateArea(id: number, payload: any) {
+  const response = await fetch(`${API_URL}/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error("Error al actualizar área");
+  return await response.json();
+}
 
-export const getAreas = async () => {
-  const res = await axios.get(API_URL, config);
-  return res.data;
-};
-
-export const createArea = async (data: any) => {
-  const res = await axios.post(API_URL, data, config);
-  return res.data;
-};
-
-export const updateArea = async (id: number, data: any) => {
-  const res = await axios.put(`${API_URL}/${id}`, data, config);
-  return res.data;
-};
-
-export const deleteArea = async (id: number) => {
-  const res = await axios.delete(`${API_URL}/${id}`, config);
-  return res.data;
-};
+export async function deleteArea(id: number) {
+  const response = await fetch(`${API_URL}/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error("Error al eliminar área");
+  return true;
+}

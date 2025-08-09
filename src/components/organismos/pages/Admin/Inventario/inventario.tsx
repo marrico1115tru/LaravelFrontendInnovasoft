@@ -40,7 +40,7 @@ export default function InventarioPage() {
   const [inventarios, setInventarios] = useState<Inventario[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [sitios, setSitios] = useState<Sitio[]>([]);
-  const [filtro, setFiltro] = useState("");
+  const [filtro, setFiltro] = useState<string>("");
   const [form, setForm] = useState<InventarioFormValues>({
     idProductoId: 0,
     fkSitioId: 0,
@@ -122,17 +122,19 @@ export default function InventarioPage() {
   const handleEdit = (inv: Inventario) => {
     setForm({
       stock: inv.stock,
-      idProductoId: inv.idProducto?.id || 0,
-      fkSitioId: inv.fkSitio?.id || 0,
+      idProductoId: inv.producto?.id || 0,
+      fkSitioId: inv.sitio?.id || 0,
     });
-    setEditId(inv.idProductoInventario);
+    setEditId(inv.id_producto_inventario);
+    // Abre el diálogo para editar
     document.getElementById("openDialog")?.click();
   };
 
+  // Agrupamos inventarios por nombre de sitio
   const agrupado = inventarios.reduce<Record<string, Inventario[]>>((acc, inv) => {
-    const sitio = inv.fkSitio?.nombre || "Sin sitio";
-    if (!acc[sitio]) acc[sitio] = [];
-    acc[sitio].push(inv);
+    const sitioNombre = inv.sitio?.nombre || "Sin sitio";
+    if (!acc[sitioNombre]) acc[sitioNombre] = [];
+    acc[sitioNombre].push(inv);
     return acc;
   }, {});
 
@@ -184,7 +186,7 @@ export default function InventarioPage() {
                     onChange={(e) => setForm({ ...form, idProductoId: Number(e.target.value) })}
                     className="w-full mt-1 border p-2 rounded bg-white"
                   >
-                    <option value="0">Selecciona un producto</option>
+                    <option value={0}>Selecciona un producto</option>
                     {productos.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.nombre}
@@ -200,7 +202,7 @@ export default function InventarioPage() {
                     onChange={(e) => setForm({ ...form, fkSitioId: Number(e.target.value) })}
                     className="w-full mt-1 border p-2 rounded bg-white"
                   >
-                    <option value="0">Selecciona un sitio</option>
+                    <option value={0}>Selecciona un sitio</option>
                     {sitios.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.nombre}
@@ -236,9 +238,7 @@ export default function InventarioPage() {
         {/* Inventario agrupado */}
         <Accordion variant="splitted">
           {Object.entries(agrupado)
-            .filter(([sitio]) =>
-              sitio.toLowerCase().includes(filtro.toLowerCase())
-            )
+            .filter(([sitio]) => sitio.toLowerCase().includes(filtro.toLowerCase()))
             .map(([sitio, items]) => (
               <AccordionItem
                 key={sitio}
@@ -266,10 +266,10 @@ export default function InventarioPage() {
                       </thead>
                       <tbody>
                         {items.map((inv) => (
-                          <tr key={inv.idProductoInventario} className="border-t">
-                            <td className="px-4 py-2">{inv.idProductoInventario}</td>
-                            <td className="px-4 py-2">{inv.idProducto?.nombre}</td>
-                            <td className="px-4 py-2">{inv.fkSitio?.nombre}</td>
+                          <tr key={inv.id_producto_inventario} className="border-t">
+                            <td className="px-4 py-2">{inv.id_producto_inventario}</td>
+                            <td className="px-4 py-2">{inv.producto?.nombre || "Sin producto"}</td>
+                            <td className="px-4 py-2">{inv.sitio?.nombre || "Sin sitio"}</td>
                             <td className="px-4 py-2">{inv.stock}</td>
                             <td className="px-4 py-2">
                               <div className="flex gap-2">
@@ -284,7 +284,7 @@ export default function InventarioPage() {
                                   size="sm"
                                   color="danger"
                                   variant="ghost"
-                                  onClick={() => handleDelete(inv.idProductoInventario)}
+                                  onClick={() => handleDelete(inv.id_producto_inventario)}
                                 >
                                   <TrashIcon className="w-4 h-4" />
                                 </HeroButton>

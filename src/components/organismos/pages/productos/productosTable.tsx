@@ -23,17 +23,20 @@ import {
   SelectItem,
   useDisclosure,
   type SortDescriptor,
+  PressEvent,
 } from '@heroui/react';
+
 import {
   getProductos,
   createProducto,
   updateProducto,
   deleteProducto,
 } from '@/Api/Productosform';
+
 import {
   getCategoriasProductos,
-  createCategoriaProducto,
 } from '@/Api/Categorias';
+
 import DefaultLayout from '@/layouts/default';
 import { PlusIcon, MoreVertical, Search as SearchIcon } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -66,22 +69,17 @@ const INITIAL_VISIBLE_COLUMNS = [
 type ColumnKey = (typeof columns)[number]['uid'];
 
 const ProductosPage = () => {
- 
   const [productos, setProductos] = useState<any[]>([]);
   const [categorias, setCategorias] = useState<any[]>([]);
 
-
   const [filterValue, setFilterValue] = useState('');
-  const [visibleColumns, setVisibleColumns] = useState(
-    new Set<string>(INITIAL_VISIBLE_COLUMNS),
-  );
+  const [visibleColumns, setVisibleColumns] = useState(new Set<string>(INITIAL_VISIBLE_COLUMNS));
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [page, setPage] = useState(1);
   const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
     column: 'id',
     direction: 'ascending',
   });
-
 
   const [form, setForm] = useState({
     nombre: '',
@@ -91,14 +89,12 @@ const ProductosPage = () => {
   });
   const [editId, setEditId] = useState<number | null>(null);
 
- 
   const [catForm, setCatForm] = useState({ nombre: '', unpsc: '' });
 
-  
-  const [prodOpen, setProdOpen] = useState(false); 
-  const { isOpen: catOpen, onOpenChange: setCatOpen } = useDisclosure(); 
+  const [prodOpen, setProdOpen] = useState(false);
+  const { isOpen: catOpen, onOpenChange: setCatOpen } = useDisclosure();
 
-  
+  // Carga datos productos y categorías
   const cargarDatos = async () => {
     try {
       const [prod, cat] = await Promise.all([getProductos(), getCategoriasProductos()]);
@@ -109,22 +105,31 @@ const ProductosPage = () => {
       await MySwal.fire('Error', 'Error cargando productos y categorías', 'error');
     }
   };
-  useEffect(() => { cargarDatos(); }, []);
 
- 
+  useEffect(() => {
+    cargarDatos();
+  }, []);
+
+  // Guardar producto
   const guardarProducto = async () => {
     if (!form.nombre.trim()) {
       await MySwal.fire('Atención', 'El nombre es obligatorio', 'warning');
       return;
     }
+    if (!form.idCategoriaId) {
+      await MySwal.fire('Atención', 'Debe seleccionar una categoría', 'warning');
+      return;
+    }
+
     const payload = {
       nombre: form.nombre,
       descripcion: form.descripcion.trim() ? form.descripcion : null,
-      fechaVencimiento: form.fechaVencimiento || undefined,
+      fechaVencimiento: form.fechaVencimiento || undefined, // usa la propiedad ya mapeada
       idCategoriaId: Number(form.idCategoriaId),
     };
+
     try {
-      if (editId) {
+      if (editId !== null) {
         await updateProducto(editId, payload);
         await MySwal.fire('Éxito', 'Producto actualizado', 'success');
       } else {
@@ -141,6 +146,7 @@ const ProductosPage = () => {
     }
   };
 
+  // Eliminar producto
   const eliminar = async (id: number) => {
     const result = await MySwal.fire({
       title: '¿Eliminar producto?',
@@ -150,6 +156,7 @@ const ProductosPage = () => {
       confirmButtonText: 'Sí, eliminar',
       cancelButtonText: 'Cancelar',
     });
+
     if (!result.isConfirmed) return;
     try {
       await deleteProducto(id);
@@ -161,6 +168,7 @@ const ProductosPage = () => {
     }
   };
 
+  // Nuevos y edición
   const abrirNuevo = () => {
     setEditId(null);
     setForm({ nombre: '', descripcion: '', fechaVencimiento: '', idCategoriaId: '' });
@@ -173,46 +181,28 @@ const ProductosPage = () => {
       nombre: p.nombre,
       descripcion: p.descripcion || '',
       fechaVencimiento: p.fechaVencimiento || '',
-      idCategoriaId: p.idCategoria?.id?.toString() || '',
+      idCategoriaId: p.categoria?.id?.toString() || '',
     });
     setProdOpen(true);
   };
 
- 
-  const guardarCategoria = async () => {
-    if (!catForm.nombre.trim()) {
-      await MySwal.fire('Atención', 'El nombre es obligatorio', 'warning');
-      return;
-    }
-    try {
-      await createCategoriaProducto({ nombre: catForm.nombre, unpsc: catForm.unpsc || undefined });
-      await cargarDatos();
-      setCatForm({ nombre: '', unpsc: '' });
-      setCatOpen();
-      await MySwal.fire('Éxito', 'Categoría creada', 'success');
-    } catch (error) {
-      console.error(error);
-      await MySwal.fire('Error', 'Error creando categoría', 'error');
-    }
-  };
+  // Filtrado
+  const filtered = useMemo(() => {
+    if (!filterValue) return productos;
+    return productos.filter(p =>
+      `${p.nombre} ${p.descripcion ?? ''} ${p.categoria?.nombre ?? ''}`
+        .toLowerCase()
+        .includes(filterValue.toLowerCase())
+    );
+  }, [productos, filterValue]);
 
-
-  const filtered = useMemo(
-    () =>
-      filterValue
-        ? productos.filter((p) =>
-            `${p.nombre} ${p.descripcion ?? ''} ${p.idCategoria?.nombre ?? ''}`
-              .toLowerCase()
-              .includes(filterValue.toLowerCase()),
-          )
-        : productos,
-    [productos, filterValue],
-  );
+  // Paginación y orden
   const pages = Math.ceil(filtered.length / rowsPerPage) || 1;
-  const sliced = useMemo(
-    () => filtered.slice((page - 1) * rowsPerPage, page * rowsPerPage),
-    [filtered, page, rowsPerPage],
-  );
+  const sliced = useMemo(() => {
+    const start = (page - 1) * rowsPerPage;
+    return filtered.slice(start, start + rowsPerPage);
+  }, [filtered, page, rowsPerPage]);
+
   const sorted = useMemo(() => {
     const items = [...sliced];
     const { column, direction } = sortDescriptor;
@@ -224,25 +214,29 @@ const ProductosPage = () => {
     return items;
   }, [sliced, sortDescriptor]);
 
+  // Renderizado Stock si tienes inventarios asociados (puedes eliminar o reemplazar esta función si no aplica)
+  const totalStock = (inventarios?: any[]) =>
+    inventarios?.reduce((acc, i) => acc + (i.stock ?? 0), 0) ?? 0;
 
-  const totalStock = (inv: any[]) =>
-    inv?.reduce((acc, i) => acc + (i.stock ?? 0), 0) ?? 0;
-
-
+  // Renderiza cada celda según su columna
   const renderCell = (item: any, key: ColumnKey) => {
     switch (key) {
       case 'descripcion':
         return <span className="text-sm text-gray-600 break-words max-w-[18rem]">{item.descripcion ?? '—'}</span>;
+
       case 'categoria':
-        return <span className="text-sm text-gray-600">{item.idCategoria?.nombre ?? '—'}</span>;
+        return <span className="text-sm text-gray-600">{item.categoria?.nombre ?? '—'}</span>;
+
       case 'stock':
         return <span className="text-sm text-gray-600">{totalStock(item.inventarios)}</span>;
+
       case 'fechaVencimiento':
         return (
           <span className="text-sm text-gray-600">
             {item.fechaVencimiento ? new Date(item.fechaVencimiento).toLocaleDateString() : '—'}
           </span>
         );
+
       case 'actions':
         return (
           <Dropdown>
@@ -261,6 +255,7 @@ const ProductosPage = () => {
             </DropdownMenu>
           </Dropdown>
         );
+
       default:
         return item[key];
     }
@@ -273,11 +268,15 @@ const ProductosPage = () => {
       return copy;
     });
 
-  
+  function guardarCategoria(_e: PressEvent): void {
+    throw new Error('Function not implemented.');
+  }
+
   return (
     <DefaultLayout>
       <div className="p-6 space-y-6">
-        
+
+        {/* Header */}
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">
             🛠️ Gestión de Productos
@@ -285,7 +284,7 @@ const ProductosPage = () => {
           <p className="text-sm text-gray-600">Consulta y administra los productos disponibles.</p>
         </header>
 
-        
+        {/* Tabla Desktop */}
         <div className="hidden md:block rounded-xl shadow-sm bg-white overflow-x-auto">
           <Table
             aria-label="Tabla de productos"
@@ -309,7 +308,6 @@ const ProductosPage = () => {
                     onClear={() => setFilterValue('')}
                   />
                   <div className="flex gap-3">
-                  
                     <Dropdown>
                       <DropdownTrigger>
                         <Button variant="flat">Columnas</Button>
@@ -330,7 +328,7 @@ const ProductosPage = () => {
                           ))}
                       </DropdownMenu>
                     </Dropdown>
-                    
+
                     <Button
                       className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
                       endContent={<PlusIcon />}
@@ -343,7 +341,7 @@ const ProductosPage = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-default-400 text-sm">Total {productos.length} productos</span>
                   <label className="flex items-center text-default-400 text-sm">
-                    Filas:&nbsp;
+                    Filas por página:&nbsp;
                     <select
                       className="bg-transparent outline-none text-default-600 ml-1"
                       value={rowsPerPage}
@@ -353,7 +351,9 @@ const ProductosPage = () => {
                       }}
                     >
                       {[5, 10, 15].map((n) => (
-                        <option key={n}>{n}</option>
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
                       ))}
                     </select>
                   </label>
@@ -365,7 +365,7 @@ const ProductosPage = () => {
                 <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
                   Anterior
                 </Button>
-                <Pagination isCompact showControls page={page} total={Math.max(pages, 1)} onChange={setPage} />
+                <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
                 <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>
                   Siguiente
                 </Button>
@@ -374,11 +374,7 @@ const ProductosPage = () => {
           >
             <TableHeader columns={columns.filter((c) => visibleColumns.has(c.uid))}>
               {(col) => (
-                <TableColumn
-                  key={col.uid}
-                  align={col.uid === 'actions' ? 'center' : 'start'}
-                  width={col.uid === 'descripcion' ? 300 : undefined}
-                >
+                <TableColumn key={col.uid} align={col.uid === 'actions' ? 'center' : 'start'} width={col.uid === 'descripcion' ? 300 : undefined}>
                   {col.name}
                 </TableColumn>
               )}
@@ -393,7 +389,7 @@ const ProductosPage = () => {
           </Table>
         </div>
 
-    
+        {/* Mobile cards */}
         <div className="grid gap-4 md:hidden">
           {sorted.length ? (
             sorted.map((p) => (
@@ -419,14 +415,13 @@ const ProductosPage = () => {
                   </div>
                   <p className="text-sm text-gray-600">{p.descripcion ?? 'Sin descripción'}</p>
                   <p className="text-sm text-gray-600">
-                    <span className="font-medium">Categoría:</span> {p.idCategoria?.nombre ?? '—'}
+                    <span className="font-medium">Categoría:</span> {p.categoria?.nombre ?? '—'}
                   </p>
                   <p className="text-sm text-gray-600">
                     <span className="font-medium">Stock:</span> {totalStock(p.inventarios)}
                   </p>
                   <p className="text-sm text-gray-600">
-                    <span className="font-medium">Vencimiento:</span>{' '}
-                    {p.fechaVencimiento ? new Date(p.fechaVencimiento).toLocaleDateString() : '—'}
+                    <span className="font-medium">Vencimiento:</span> {p.fechaVencimiento ? new Date(p.fechaVencimiento).toLocaleDateString() : '—'}
                   </p>
                   <p className="text-xs text-gray-400">ID: {p.id}</p>
                 </CardContent>
@@ -437,7 +432,7 @@ const ProductosPage = () => {
           )}
         </div>
 
-      
+        {/* Modal nuevo o editar producto */}
         <Modal
           isOpen={prodOpen}
           onOpenChange={setProdOpen}
@@ -450,15 +445,22 @@ const ProductosPage = () => {
               <>
                 <ModalHeader>{editId ? 'Editar Producto' : 'Nuevo Producto'}</ModalHeader>
                 <ModalBody className="space-y-4">
-                  <Input label="Nombre" value={form.nombre} onValueChange={(v) => setForm((p) => ({ ...p, nombre: v }))} />
-                  <Input label="Descripción" value={form.descripcion} onValueChange={(v) => setForm((p) => ({ ...p, descripcion: v }))} />
+                  <Input
+                    label="Nombre"
+                    value={form.nombre}
+                    onValueChange={(v) => setForm((p) => ({ ...p, nombre: v }))}
+                  />
+                  <Input
+                    label="Descripción"
+                    value={form.descripcion}
+                    onValueChange={(v) => setForm((p) => ({ ...p, descripcion: v }))}
+                  />
                   <Input
                     label="Fecha de vencimiento"
                     type="date"
                     value={form.fechaVencimiento}
                     onValueChange={(v) => setForm((p) => ({ ...p, fechaVencimiento: v }))}
                   />
-                  
                   <div className="flex items-end gap-2">
                     <Select
                       label="Categoría"
@@ -472,7 +474,7 @@ const ProductosPage = () => {
                         <SelectItem key={c.id}>{c.nombre}</SelectItem>
                       ))}
                     </Select>
-                  
+
                     <Button
                       isIconOnly
                       variant="solid"
@@ -496,7 +498,7 @@ const ProductosPage = () => {
           </ModalContent>
         </Modal>
 
-      
+        {/* Modal nueva categoría */}
         <Modal
           isOpen={catOpen}
           onOpenChange={setCatOpen}
@@ -504,13 +506,24 @@ const ProductosPage = () => {
           placement="center"
           className="backdrop-blur-sm bg-black/30"
         >
-          <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl">
+          <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl max-w-md p-6">
             {() => (
               <>
                 <ModalHeader>Nueva Categoría</ModalHeader>
-                <ModalBody className="space-y-4">
-                  <Input label="Nombre" value={catForm.nombre} onValueChange={(v) => setCatForm((p) => ({ ...p, nombre: v }))} />
-                  <Input label="Código UNPSC (opcional)" value={catForm.unpsc} onValueChange={(v) => setCatForm((p) => ({ ...p, unpsc: v }))} />
+                <ModalBody>
+                  <Input
+                    label="Nombre"
+                    value={catForm.nombre}
+                    onValueChange={(v) => setCatForm((p) => ({ ...p, nombre: v }))}
+                    radius="sm"
+                    autoFocus
+                  />
+                  <Input
+                    label="Código UNPSC (opcional)"
+                    value={catForm.unpsc}
+                    onValueChange={(v) => setCatForm((p) => ({ ...p, unpsc: v }))}
+                    radius="sm"
+                  />
                 </ModalBody>
                 <ModalFooter>
                   <Button variant="light" onPress={() => setCatOpen()}>

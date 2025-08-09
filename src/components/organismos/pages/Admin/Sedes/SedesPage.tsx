@@ -19,7 +19,6 @@ import {
   ModalFooter,
   ModalHeader,
   Checkbox,
-  useDisclosure,
   type SortDescriptor,
 } from '@heroui/react';
 import {
@@ -43,14 +42,19 @@ const columns = [
   { name: 'Nombre', uid: 'nombre', sortable: false },
   { name: 'Ubicación', uid: 'ubicacion', sortable: false },
   { name: 'Centro de Formación', uid: 'centro', sortable: false },
+  { name: 'Teléfono Centro', uid: 'telefonoCentro', sortable: false },
+  { name: 'Email Centro', uid: 'emailCentro', sortable: false },
   { name: '# Áreas', uid: 'areas', sortable: false },
   { name: 'Acciones', uid: 'actions' },
 ];
+
 const INITIAL_VISIBLE_COLUMNS = [
   'id',
   'nombre',
   'ubicacion',
   'centro',
+  'telefonoCentro',
+  'emailCentro',
   'areas',
   'actions',
 ];
@@ -69,10 +73,11 @@ export default function SedesPage() {
 
   const [nombre, setNombre] = useState('');
   const [ubicacion, setUbicacion] = useState('');
-  const [idCentro, setIdCentro] = useState<number | ''>('');
+  // guardamos el id del centro como string para <select>
+  const [idCentro, setIdCentro] = useState<string>('');
   const [editId, setEditId] = useState<number | null>(null);
 
-  const { isOpen, onOpenChange, onOpen, onClose } = useDisclosure();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     cargarDatos();
@@ -84,7 +89,7 @@ export default function SedesPage() {
       setSedes(sds);
       setCentros(cfs);
     } catch (err) {
-      console.error('Error cargando sedes', err);
+      console.error('Error cargando sedes y centros', err);
       await MySwal.fire('Error', 'No se pudo cargar las sedes y centros', 'error');
     }
   };
@@ -125,13 +130,13 @@ export default function SedesPage() {
     }
 
     const payload = {
-      nombre,
-      ubicacion,
-      idCentroFormacion: { id: Number(idCentro) },
+      nombre: nombre.trim(),
+      ubicacion: ubicacion.trim(),
+      id_centro_formacion: Number(idCentro),
     };
 
     try {
-      if (editId) {
+      if (editId !== null) {
         await updateSede(editId, payload);
         await MySwal.fire('Actualizada', 'Sede actualizada', 'success');
       } else {
@@ -139,7 +144,7 @@ export default function SedesPage() {
         await MySwal.fire('Creada', 'Sede creada', 'success');
       }
       limpiarForm();
-      onClose();
+      setIsModalOpen(false);
       await cargarDatos();
     } catch (error) {
       console.error(error);
@@ -151,8 +156,8 @@ export default function SedesPage() {
     setEditId(s.id);
     setNombre(s.nombre || '');
     setUbicacion(s.ubicacion || '');
-    setIdCentro(s.idCentroFormacion?.id || '');
-    onOpen();
+    setIdCentro(s.centro_formacion?.id?.toString() || '');
+    setIsModalOpen(true);
   };
 
   const limpiarForm = () => {
@@ -164,10 +169,9 @@ export default function SedesPage() {
 
   const filtered = useMemo(() => {
     if (!filterValue) return sedes;
+    const lowerFilter = filterValue.toLowerCase();
     return sedes.filter((s) =>
-      `${s.nombre} ${s.ubicacion} ${s.idCentroFormacion?.nombre || ''}`
-        .toLowerCase()
-        .includes(filterValue.toLowerCase())
+      `${s.nombre} ${s.ubicacion} ${s.centro_formacion?.nombre || ''}`.toLowerCase().includes(lowerFilter)
     );
   }, [sedes, filterValue]);
 
@@ -182,9 +186,26 @@ export default function SedesPage() {
     const items = [...sliced];
     const { column, direction } = sortDescriptor;
     items.sort((a, b) => {
-      const x = a[column as keyof typeof a];
-      const y = b[column as keyof typeof b];
-      return x === y ? 0 : (x > y ? 1 : -1) * (direction === 'ascending' ? 1 : -1);
+      // Para columna especial: nombre del centro y teléfono, email
+      const x =
+        column === 'centro'
+          ? a.centro_formacion?.nombre || ''
+          : column === 'telefonoCentro'
+          ? a.centro_formacion?.telefono || ''
+          : column === 'emailCentro'
+          ? a.centro_formacion?.email || ''
+          : a[column as keyof typeof a];
+      const y =
+        column === 'centro'
+          ? b.centro_formacion?.nombre || ''
+          : column === 'telefonoCentro'
+          ? b.centro_formacion?.telefono || ''
+          : column === 'emailCentro'
+          ? b.centro_formacion?.email || ''
+          : b[column as keyof typeof b];
+
+      if (x === y) return 0;
+      return (x > y ? 1 : -1) * (direction === 'ascending' ? 1 : -1);
     });
     return items;
   }, [sliced, sortDescriptor]);
@@ -200,7 +221,21 @@ export default function SedesPage() {
       case 'ubicacion':
         return <span className="text-sm text-gray-600">{item.ubicacion}</span>;
       case 'centro':
-        return <span className="text-sm text-gray-600">{item.idCentroFormacion?.nombre || '—'}</span>;
+        return (
+          <span className="text-sm text-gray-600">{item.centro_formacion?.nombre || '—'}</span>
+        );
+      case 'telefonoCentro':
+        return (
+          <span className="text-sm text-gray-600">
+            {item.centro_formacion?.telefono || '—'}
+          </span>
+        );
+      case 'emailCentro':
+        return (
+          <span className="text-sm text-gray-600">
+            {item.centro_formacion?.email || '—'}
+          </span>
+        );
       case 'areas':
         return <span className="text-sm text-gray-600">{item.areas?.length || 0}</span>;
       case 'actions':
@@ -274,7 +309,7 @@ export default function SedesPage() {
             endContent={<PlusIcon />}
             onPress={() => {
               limpiarForm();
-              onOpen();
+              setIsModalOpen(true);
             }}
           >
             Nueva Sede
@@ -306,11 +341,27 @@ export default function SedesPage() {
 
   const bottomContent = (
     <div className="py-2 px-2 flex justify-center items-center gap-2">
-      <Button isDisabled={page === 1} size="sm" variant="flat" onPress={() => setPage(page - 1)}>
+      <Button
+        isDisabled={page === 1}
+        size="sm"
+        variant="flat"
+        onPress={() => setPage(page - 1)}
+      >
         Anterior
       </Button>
-      <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
-      <Button isDisabled={page === pages} size="sm" variant="flat" onPress={() => setPage(page + 1)}>
+      <Pagination
+        isCompact
+        showControls
+        page={page}
+        total={pages}
+        onChange={setPage}
+      />
+      <Button
+        isDisabled={page === pages}
+        size="sm"
+        variant="flat"
+        onPress={() => setPage(page + 1)}
+      >
         Siguiente
       </Button>
     </div>
@@ -320,7 +371,9 @@ export default function SedesPage() {
     <DefaultLayout>
       <div className="p-6 space-y-6">
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">🏢 Gestión de Sedes</h1>
+          <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">
+            🏢 Gestión de Sedes
+          </h1>
           <p className="text-sm text-gray-600">Consulta y administra las sedes y sus áreas.</p>
         </header>
 
@@ -339,7 +392,11 @@ export default function SedesPage() {
           >
             <TableHeader columns={columns.filter((c) => visibleColumns.has(c.uid))}>
               {(col) => (
-                <TableColumn key={col.uid} align={col.uid === 'actions' ? 'center' : 'start'} width={col.uid === 'nombre' ? 260 : undefined}>
+                <TableColumn
+                  key={col.uid}
+                  align={col.uid === 'actions' ? 'center' : 'start'}
+                  width={col.uid === 'nombre' ? 260 : undefined}
+                >
                   {col.name}
                 </TableColumn>
               )}
@@ -354,6 +411,7 @@ export default function SedesPage() {
           </Table>
         </div>
 
+        {/* Vista responsive móvil */}
         <div className="grid gap-4 md:hidden">
           {sorted.length === 0 ? (
             <p className="text-center text-gray-500">No se encontraron sedes</p>
@@ -365,19 +423,43 @@ export default function SedesPage() {
                     <h3 className="font-semibold text-lg">{s.nombre}</h3>
                     <Dropdown>
                       <DropdownTrigger>
-                        <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          className="rounded-full text-[#0D1324]"
+                        >
                           <MoreVertical />
                         </Button>
                       </DropdownTrigger>
                       <DropdownMenu>
-                        <DropdownItem key={`editar-${s.id}`} onPress={() => abrirModalEditar(s)}>Editar</DropdownItem>
-                        <DropdownItem key={`eliminar-${s.id}`} onPress={() => eliminar(s.id)}>Eliminar</DropdownItem>
+                        <DropdownItem
+                          key={`editar-${s.id}`}
+                          onPress={() => abrirModalEditar(s)}
+                        >
+                          Editar
+                        </DropdownItem>
+                        <DropdownItem key={`eliminar-${s.id}`} onPress={() => eliminar(s.id)}>
+                          Eliminar
+                        </DropdownItem>
                       </DropdownMenu>
                     </Dropdown>
                   </div>
-                  <p className="text-sm text-gray-600"><span className="font-medium">Ubicación:</span> {s.ubicacion}</p>
-                  <p className="text-sm text-gray-600"><span className="font-medium">Centro:</span> {s.idCentroFormacion?.nombre || '—'}</p>
-                  <p className="text-sm text-gray-600"><span className="font-medium">Áreas:</span> {s.areas?.length || 0}</p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Ubicación:</span> {s.ubicacion}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Centro:</span> {s.centro_formacion?.nombre || '—'}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Teléfono:</span> {s.centro_formacion?.telefono || '—'}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Email:</span> {s.centro_formacion?.email || '—'}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Áreas:</span> {s.areas?.length || 0}
+                  </p>
                   <p className="text-xs text-gray-400">ID: {s.id}</p>
                 </CardContent>
               </Card>
@@ -385,34 +467,57 @@ export default function SedesPage() {
           )}
         </div>
 
-        <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" className="backdrop-blur-sm bg-black/30">
-          <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl">
-            {(onCloseLocal) => (
-              <>
-                <ModalHeader>{editId ? 'Editar Sede' : 'Nueva Sede'}</ModalHeader>
-                <ModalBody className="space-y-4">
-                  <Input label="Nombre" placeholder="Ej: Sede Principal" value={nombre} onValueChange={setNombre} radius="sm" />
-                  <Input label="Ubicación" placeholder="Dirección física" value={ubicacion} onValueChange={setUbicacion} radius="sm" />
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">Centro de Formación</label>
-                    <select
-                      value={idCentro}
-                      onChange={(e) => setIdCentro(Number(e.target.value) || '')}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Seleccione un centro</option>
-                      {centros.map((c: any) => (
-                        <option key={c.id} value={c.id}>{c.nombre}</option>
-                      ))}
-                    </select>
-                  </div>
-                </ModalBody>
-                <ModalFooter>
-                  <Button variant="light" onPress={onCloseLocal}>Cancelar</Button>
-                  <Button variant="flat" onPress={guardar}>{editId ? 'Actualizar' : 'Crear'}</Button>
-                </ModalFooter>
-              </>
-            )}
+        <Modal
+          isOpen={isModalOpen}
+          onOpenChange={setIsModalOpen}
+          placement="center"
+          className="backdrop-blur-sm bg-black/30"
+        >
+          <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl max-w-lg w-full p-6">
+            <>
+              <ModalHeader>{editId !== null ? 'Editar Sede' : 'Nueva Sede'}</ModalHeader>
+              <ModalBody className="space-y-4">
+                <Input
+                  label="Nombre"
+                  placeholder="Ej: Sede Principal"
+                  value={nombre}
+                  onValueChange={setNombre}
+                  radius="sm"
+                />
+                <Input
+                  label="Ubicación"
+                  placeholder="Dirección física"
+                  value={ubicacion}
+                  onValueChange={setUbicacion}
+                  radius="sm"
+                />
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">
+                    Centro de Formación
+                  </label>
+                  <select
+                    value={idCentro}
+                    onChange={(e) => setIdCentro(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Seleccione un centro</option>
+                    {centros.map((c: any) => (
+                      <option key={c.id} value={c.id}>
+                        {c.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </ModalBody>
+              <ModalFooter className="flex justify-end gap-3">
+                <Button variant="light" onPress={() => setIsModalOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button variant="flat" onPress={guardar}>
+                  {editId !== null ? 'Actualizar' : 'Crear'}
+                </Button>
+              </ModalFooter>
+            </>
           </ModalContent>
         </Modal>
       </div>

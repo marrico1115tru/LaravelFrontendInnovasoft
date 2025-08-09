@@ -22,6 +22,7 @@ export interface Movimiento {
 }
 
 export interface Inventario {
+  [x: string]: any;
   idProductoInventario: number;
   stock: number;
   fkSitio: Sitio;

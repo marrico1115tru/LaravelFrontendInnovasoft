@@ -1,3 +1,5 @@
+// types/EntregaMaterial.ts
+
 export interface FichaFormacion {
   id: number;
   nombre?: string;
@@ -23,7 +25,7 @@ export interface EntregaMaterial {
   id?: number;
   fechaEntrega: string;
   observaciones?: string | null;
-  idFichaFormacion: FichaFormacion;
-  idSolicitud: Solicitud;
-  idUsuarioResponsable: UsuarioResponsable;
+  idFichaFormacion: number;       // solo ID número
+  idSolicitud: number;            // solo ID número
+  idUsuarioResponsable: number;   // solo ID número
 }

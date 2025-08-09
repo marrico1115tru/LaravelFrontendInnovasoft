@@ -1,27 +1,35 @@
 import axios from 'axios';
-import { Sede, SedeFormValues } from '@/types/types/Sede';
 
-const API_URL = 'http://localhost:3000/sedes';
+const BASE_URL = 'http://127.0.0.1:8000/api/sedes';
 
-const config = {
-  withCredentials: true,
+export const getSedes = async () => {
+  const response = await axios.get(BASE_URL);
+  // Response contiene "centro_formacion"
+  return response.data;
 };
 
-export const getSedes = async (): Promise<Sede[]> => {
-  const res = await axios.get(API_URL, config);
-  return res.data;
+export const createSede = async (data: any) => {
+  // Para crear o actualizar, envía el id_centro_formacion directamente
+  const payload = {
+    nombre: data.nombre,
+    ubicacion: data.ubicacion,
+    id_centro_formacion: data.id_centro_formacion || data.idCentroFormacion || data.idCentro, // puedes usar idCentro de frontend
+  };
+  const response = await axios.post(BASE_URL, payload);
+  return response.data;
 };
 
-export const createSede = async (data: SedeFormValues): Promise<Sede> => {
-  const res = await axios.post(API_URL, data, config);
-  return res.data;
+export const updateSede = async (id: number, data: any) => {
+  const payload = {
+    nombre: data.nombre,
+    ubicacion: data.ubicacion,
+    id_centro_formacion: data.id_centro_formacion || data.idCentroFormacion || data.idCentro,
+  };
+  const response = await axios.put(`${BASE_URL}/${id}`, payload);
+  return response.data;
 };
 
-export const updateSede = async (id: number, data: SedeFormValues): Promise<Sede> => {
-  const res = await axios.put(`${API_URL}/${id}`, data, config);
-  return res.data;
-};
-
-export const deleteSede = async (id: number): Promise<void> => {
-  await axios.delete(`${API_URL}/${id}`, config);
+export const deleteSede = async (id: number) => {
+  const response = await axios.delete(`${BASE_URL}/${id}`);
+  return response.data;
 };

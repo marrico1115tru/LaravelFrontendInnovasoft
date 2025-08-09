@@ -1,4 +1,3 @@
-""// src/pages/CategoriasProductosPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
   Table,
@@ -199,7 +198,6 @@ const CategoriasProductosPage = () => {
     }
   };
 
-
   return (
     <DefaultLayout>
       <div className="p-6 space-y-6">
@@ -210,7 +208,6 @@ const CategoriasProductosPage = () => {
           <p className="text-sm text-gray-600">Consulta y administra las categorías disponibles.</p>
         </header>
 
-        {/* Tabla Desktop */}
         <div className="hidden md:block rounded-xl shadow-sm bg-white overflow-x-auto">
           <Table
             aria-label="Tabla de categorías"
@@ -297,7 +294,7 @@ const CategoriasProductosPage = () => {
           </Table>
         </div>
 
-        {/* Cards Mobile */}
+        {/* Mobile cards */}
         <div className="grid gap-4 md:hidden">
           {sorted.length === 0 && <p className="text-center text-gray-500">No se encontraron categorías</p>}
           {sorted.map((cat) => (

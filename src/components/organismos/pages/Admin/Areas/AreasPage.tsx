@@ -1,4 +1,3 @@
-// pages/areas.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
   Table,
@@ -31,13 +30,7 @@ import {
 } from "@/Api/AreasService";
 
 import DefaultLayout from "@/layouts/default";
-import {
-  PlusIcon,
-  MoreVertical,
-  Search,
-  Pencil,
-  Trash,
-} from "lucide-react";
+import { PlusIcon, MoreVertical, Search, Pencil, Trash } from "lucide-react";
 
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
@@ -46,11 +39,11 @@ const MySwal = withReactContent(Swal);
 
 const columns = [
   { name: "ID", uid: "id", sortable: true },
-  { name: "Nombre", uid: "nombreArea", sortable: false },
+  { name: "Nombre", uid: "nombre_area", sortable: false },
   { name: "Acciones", uid: "actions" },
 ];
 
-const INITIAL_VISIBLE_COLUMNS = ["id", "nombreArea", "actions"];
+const INITIAL_VISIBLE_COLUMNS = ["id", "nombre_area", "actions"];
 
 const AreasPage = () => {
   const [areas, setAreas] = useState<any[]>([]);
@@ -58,7 +51,10 @@ const AreasPage = () => {
   const [visibleColumns] = useState(new Set(INITIAL_VISIBLE_COLUMNS));
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [page, setPage] = useState(1);
-  const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({ column: "id", direction: "ascending" });
+  const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
+    column: "id",
+    direction: "ascending",
+  });
 
   const [nombre, setNombre] = useState("");
   const [editId, setEditId] = useState<number | null>(null);
@@ -107,7 +103,7 @@ const AreasPage = () => {
       return;
     }
 
-    const payload = { nombreArea: nombre.trim() };
+    const payload = { nombre_area: nombre.trim() };
 
     try {
       if (editId) {
@@ -127,7 +123,7 @@ const AreasPage = () => {
 
   const abrirModalEditar = (area: any) => {
     setEditId(area.id);
-    setNombre(area.nombreArea);
+    setNombre(area.nombre_area);
     onOpen();
   };
 
@@ -139,7 +135,9 @@ const AreasPage = () => {
 
   const filtered = useMemo(() => {
     return filterValue
-      ? areas.filter((a) => (a.nombreArea || "").toLowerCase().includes(filterValue.toLowerCase()))
+      ? areas.filter((a) =>
+          (a.nombre_area || "").toLowerCase().includes(filterValue.toLowerCase())
+        )
       : areas;
   }, [areas, filterValue]);
 
@@ -163,21 +161,37 @@ const AreasPage = () => {
 
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
-      case "nombreArea":
-        return <span className="font-medium text-gray-800">{item.nombreArea || "—"}</span>;
+      case "nombre_area":
+        return (
+          <span className="font-medium text-gray-800">{item.nombre_area || "—"}</span>
+        );
       case "actions":
         return (
           <Dropdown>
             <DropdownTrigger>
-              <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
+              <Button
+                isIconOnly
+                size="sm"
+                variant="light"
+                className="rounded-full text-[#0D1324]"
+              >
                 <MoreVertical />
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              <DropdownItem key={`editar-${item.id}`} onPress={() => abrirModalEditar(item)} startContent={<Pencil size={16} />}>
+              <DropdownItem
+                key={`editar-${item.id}`}
+                onPress={() => abrirModalEditar(item)}
+                startContent={<Pencil size={16} />}
+              >
                 Editar
               </DropdownItem>
-              <DropdownItem key={`eliminar-${item.id}`} onPress={() => eliminar(item.id)} startContent={<Trash size={16} />} className="text-danger">
+              <DropdownItem
+                key={`eliminar-${item.id}`}
+                onPress={() => eliminar(item.id)}
+                startContent={<Trash size={16} />}
+                className="text-danger"
+              >
                 Eliminar
               </DropdownItem>
             </DropdownMenu>
@@ -247,11 +261,27 @@ const AreasPage = () => {
             }
             bottomContent={
               <div className="py-2 px-2 flex justify-center items-center gap-2">
-                <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  isDisabled={page === 1}
+                  onPress={() => setPage(page - 1)}
+                >
                   Anterior
                 </Button>
-                <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
-                <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>
+                <Pagination
+                  isCompact
+                  showControls
+                  page={page}
+                  total={pages}
+                  onChange={setPage}
+                />
+                <Button
+                  size="sm"
+                  variant="flat"
+                  isDisabled={page === pages}
+                  onPress={() => setPage(page + 1)}
+                >
                   Siguiente
                 </Button>
               </div>
@@ -268,7 +298,7 @@ const AreasPage = () => {
                 <TableColumn
                   key={col.uid}
                   align={col.uid === "actions" ? "center" : "start"}
-                  width={col.uid === "nombreArea" ? 300 : undefined}
+                  width={col.uid === "nombre_area" ? 300 : undefined}
                 >
                   {col.name}
                 </TableColumn>
@@ -284,7 +314,13 @@ const AreasPage = () => {
           </Table>
         </div>
 
-        <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" className="backdrop-blur-sm bg-black/30" isDismissable>
+        <Modal
+          isOpen={isOpen}
+          onOpenChange={onOpenChange}
+          placement="center"
+          className="backdrop-blur-sm bg-black/30"
+          isDismissable
+        >
           <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl max-w-lg w-full p-6">
             {() => (
               <>

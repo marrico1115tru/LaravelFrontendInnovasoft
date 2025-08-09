@@ -30,6 +30,7 @@ import {
   updateCentroFormacion,
   deleteCentroFormacion,
 } from "@/Api/centrosformacionTable";
+
 import { obtenerMunicipios } from "@/Api/MunicipiosForm";
 import DefaultLayout from "@/layouts/default";
 import { PlusIcon, MoreVertical, Search as SearchIcon } from "lucide-react";
@@ -185,15 +186,17 @@ const CentrosFormacionPage = () => {
     setUbicacion(c.ubicacion || "");
     setTelefono(c.telefono || "");
     setEmail(c.email || "");
-    setIdMunicipio(c.idMunicipio?.id?.toString() || "");
+    // Aquí usamos c.municipio.id (no idMunicipio)
+    setIdMunicipio(c.municipio?.id?.toString() || "");
     setIsModalOpen(true);
   };
 
+  // Filtro usando municipio (relación) y no idMunicipio
   const filtered = useMemo(() => {
     if (!filterValue) return centros;
     const lowerFilter = filterValue.toLowerCase();
     return centros.filter((c) =>
-      `${c.nombre} ${c.ubicacion} ${c.email} ${c.idMunicipio?.nombre || ""}`
+      `${c.nombre} ${c.ubicacion} ${c.email} ${c.municipio?.nombre || ""}`
         .toLowerCase()
         .includes(lowerFilter)
     );
@@ -233,8 +236,9 @@ const CentrosFormacionPage = () => {
       case "email":
         return <span className="text-sm text-gray-600">{item.email}</span>;
       case "municipio":
+        // Aquí referenciamos correctamente municipio.nombre
         return (
-          <span className="text-sm text-gray-600">{item.idMunicipio?.nombre || "—"}</span>
+          <span className="text-sm text-gray-600">{item.municipio?.nombre || "—"}</span>
         );
       case "sedes":
         return <span className="text-sm text-gray-600">{item.sedes?.length || 0}</span>;
@@ -269,7 +273,6 @@ const CentrosFormacionPage = () => {
     });
   };
 
-  // Removed permissions check, so directly render the page
   return (
     <DefaultLayout>
       <div className="p-6 space-y-6">
@@ -478,4 +481,4 @@ const CentrosFormacionPage = () => {
   );
 };
 
-export default CentrosFormacionPage;  
+export default CentrosFormacionPage;

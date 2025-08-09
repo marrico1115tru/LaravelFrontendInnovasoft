@@ -1,4 +1,3 @@
-// src/pages/TituladosPage.tsx
 import { useEffect, useMemo, useState } from 'react';
 import {
   Table,
@@ -44,10 +43,10 @@ const columns = [
   { name: 'Fichas', uid: 'fichas', sortable: false },
   { name: 'Acciones', uid: 'actions' },
 ];
+
 const INITIAL_VISIBLE_COLUMNS = ['id', 'nombre', 'fichas', 'actions'];
 
-const TituladosPage = () => {
-  /* Estado */
+export default function TituladosPage() {
   const [titulados, setTitulados] = useState<any[]>([]);
   const [filterValue, setFilterValue] = useState('');
   const [visibleColumns, setVisibleColumns] = useState(new Set(INITIAL_VISIBLE_COLUMNS));
@@ -63,7 +62,6 @@ const TituladosPage = () => {
 
   const { isOpen, onOpenChange, onOpen, onClose } = useDisclosure();
 
-  /* Cargar datos */
   const cargarTitulados = async () => {
     try {
       const data = await getTitulados();
@@ -78,7 +76,6 @@ const TituladosPage = () => {
     cargarTitulados();
   }, []);
 
-  /* CRUD */
   const eliminar = async (id: number) => {
     const result = await MySwal.fire({
       title: '¿Eliminar titulado?',
@@ -109,7 +106,7 @@ const TituladosPage = () => {
     const payload = { nombre: nombre.trim() };
 
     try {
-      if (editId) {
+      if (editId !== null) {
         await updateTitulado(editId, payload);
         await MySwal.fire('Éxito', 'Titulado actualizado', 'success');
       } else {
@@ -132,16 +129,16 @@ const TituladosPage = () => {
     onOpen();
   };
 
-  /* Filtro + Orden + Paginación */
-  const filtered = useMemo(
-    () =>
-      filterValue
-        ? titulados.filter((t) => t.nombre.toLowerCase().includes(filterValue.toLowerCase()))
-        : titulados,
-    [titulados, filterValue],
+  const filtered = useMemo(() =>
+    filterValue
+      ? titulados.filter((t) =>
+          t.nombre.toLowerCase().includes(filterValue.toLowerCase())
+        )
+      : titulados,
+    [titulados, filterValue]
   );
 
-  const pages = Math.ceil(filtered.length / rowsPerPage) || 1;
+  const pages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
 
   const sliced = useMemo(() => {
     const start = (page - 1) * rowsPerPage;
@@ -151,15 +148,16 @@ const TituladosPage = () => {
   const sorted = useMemo(() => {
     const items = [...sliced];
     const { column, direction } = sortDescriptor;
+
     items.sort((a, b) => {
       const x = a[column as keyof typeof a];
       const y = b[column as keyof typeof b];
       return x === y ? 0 : (x > y ? 1 : -1) * (direction === 'ascending' ? 1 : -1);
     });
+
     return items;
   }, [sliced, sortDescriptor]);
 
-  /* Render Cell */
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
       case 'nombre':
@@ -195,16 +193,15 @@ const TituladosPage = () => {
     }
   };
 
-  /* Columnas visibles */
   const toggleColumn = (key: string) => {
     setVisibleColumns((prev) => {
       const copy = new Set(prev);
-      copy.has(key) ? copy.delete(key) : copy.add(key);
+      if (copy.has(key)) copy.delete(key);
+      else copy.add(key);
       return copy;
     });
   };
 
-  /* Top content */
   const topContent = (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
@@ -275,7 +272,6 @@ const TituladosPage = () => {
     </div>
   );
 
-  /* Bottom content */
   const bottomContent = (
     <div className="py-2 px-2 flex justify-center items-center gap-2">
       <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
@@ -291,7 +287,7 @@ const TituladosPage = () => {
   return (
     <DefaultLayout>
       <div className="p-6 space-y-6">
-        {/* Encabezado */}
+        {/* Header */}
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">
             🎓 Gestión de Titulados
@@ -299,7 +295,7 @@ const TituladosPage = () => {
           <p className="text-sm text-gray-600">Consulta y administra los programas titulados.</p>
         </header>
 
-        {/* Tabla desktop */}
+        {/* Desktop table */}
         <div className="hidden md:block rounded-xl shadow-sm bg-white overflow-x-auto">
           <Table
             aria-label="Tabla de titulados"
@@ -313,11 +309,11 @@ const TituladosPage = () => {
               td: 'align-middle py-3 px-4',
             }}
           >
-            <TableHeader columns={columns.filter((c) => visibleColumns.has(c.uid))}>
+            <TableHeader columns={columns.filter(c => visibleColumns.has(c.uid))}>
               {(col) => (
-                <TableColumn
-                  key={col.uid}
-                  align={col.uid === 'actions' ? 'center' : 'start'}
+                <TableColumn 
+                  key={col.uid} 
+                  align={col.uid === 'actions' ? 'center' : 'start'} 
                   width={col.uid === 'nombre' ? 320 : undefined}
                 >
                   {col.name}
@@ -334,26 +330,17 @@ const TituladosPage = () => {
           </Table>
         </div>
 
-        {/* Cards móvil */}
+        {/* Mobile cards */}
         <div className="grid gap-4 md:hidden">
-          {sorted.length === 0 && (
-            <p className="text-center text-gray-500">No se encontraron titulados</p>
-          )}
-          {sorted.map((t) => (
+          {sorted.length === 0 && <p className="text-center text-gray-500">No se encontraron titulados</p>}
+          {sorted.map(t => (
             <Card key={t.id} className="shadow-sm">
               <CardContent className="space-y-2 p-4">
                 <div className="flex justify-between items-start">
-                  <h3 className="font-semibold text-lg break-words max-w-[14rem]">
-                    {t.nombre}
-                  </h3>
+                  <h3 className="font-semibold text-lg break-words max-w-[14rem]">{t.nombre}</h3>
                   <Dropdown>
                     <DropdownTrigger>
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="light"
-                        className="rounded-full text-[#0D1324]"
-                      >
+                      <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
                         <MoreVertical />
                       </Button>
                     </DropdownTrigger>
@@ -376,14 +363,8 @@ const TituladosPage = () => {
           ))}
         </div>
 
-        {/* Modal CRUD */}
-        <Modal
-          isOpen={isOpen}
-          onOpenChange={onOpenChange}
-          placement="center"
-          className="backdrop-blur-sm bg-black/30"
-          isDismissable={false}
-        >
+        {/* Modal */}
+        <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" className="backdrop-blur-sm bg-black/30" isDismissable={false}>
           <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl max-w-md w-full p-6">
             {(onCloseLocal) => (
               <>
@@ -397,13 +378,9 @@ const TituladosPage = () => {
                     autoFocus
                   />
                 </ModalBody>
-                <ModalFooter>
-                  <Button variant="light" onPress={onCloseLocal}>
-                    Cancelar
-                  </Button>
-                  <Button variant="flat" onPress={guardar}>
-                    {editId ? 'Actualizar' : 'Crear'}
-                  </Button>
+                <ModalFooter className="flex justify-end gap-3">
+                  <Button variant="light" onPress={onCloseLocal}>Cancelar</Button>
+                  <Button variant="flat" onPress={guardar}>{editId ? 'Actualizar' : 'Crear'}</Button>
                 </ModalFooter>
               </>
             )}
@@ -412,6 +389,4 @@ const TituladosPage = () => {
       </div>
     </DefaultLayout>
   );
-};
-
-export default TituladosPage;
+}

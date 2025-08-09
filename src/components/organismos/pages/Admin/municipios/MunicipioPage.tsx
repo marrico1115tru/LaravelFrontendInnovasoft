@@ -22,14 +22,24 @@ import {
   useDisclosure,
   type SortDescriptor,
 } from '@heroui/react';
+
 import {
   obtenerMunicipios,
   crearMunicipio,
   actualizarMunicipio,
   eliminarMunicipio,
 } from '@/Api/MunicipiosForm';
+
 import DefaultLayout from '@/layouts/default';
-import { PlusIcon, MoreVertical, Search as SearchIcon } from 'lucide-react';
+
+import {
+  PlusIcon,
+  MoreVertical,
+  Search as SearchIcon,
+  Pencil,
+  Trash,
+} from 'lucide-react';
+
 import { Card, CardContent } from '@/components/ui/card';
 
 import Swal from 'sweetalert2';
@@ -42,7 +52,7 @@ const columns = [
   { name: 'Nombre', uid: 'nombre', sortable: false },
   { name: 'Departamento', uid: 'departamento', sortable: false },
   { name: 'Centros', uid: 'centros', sortable: false },
-  { name: 'Acciones', uid: 'actions' },
+  { name: 'Acciones', uid: 'actions', sortable: false },
 ];
 const INITIAL_VISIBLE_COLUMNS = ['id', 'nombre', 'departamento', 'centros', 'actions'];
 
@@ -63,10 +73,7 @@ const MunicipiosPage = () => {
 
   const { isOpen, onOpenChange, onOpen, onClose } = useDisclosure();
 
-  useEffect(() => {
-    cargarMunicipios();
-  }, []);
-
+  // Cargar municipios
   const cargarMunicipios = async () => {
     try {
       const data = await obtenerMunicipios();
@@ -77,6 +84,11 @@ const MunicipiosPage = () => {
     }
   };
 
+  useEffect(() => {
+    cargarMunicipios();
+  }, []);
+
+  // Eliminar municipio
   const eliminar = async (id: number) => {
     const result = await MySwal.fire({
       title: '¿Eliminar municipio?',
@@ -98,6 +110,7 @@ const MunicipiosPage = () => {
     }
   };
 
+  // Guardar municipio (crear o actualizar)
   const guardar = async () => {
     if (!nombre.trim()) {
       await MySwal.fire('Error', 'El nombre es obligatorio', 'error');
@@ -107,7 +120,7 @@ const MunicipiosPage = () => {
       await MySwal.fire('Error', 'El departamento es obligatorio', 'error');
       return;
     }
-    const payload = { nombre, departamento };
+    const payload = { nombre: nombre.trim(), departamento: departamento.trim() };
     try {
       if (editId) {
         await actualizarMunicipio(editId, payload);
@@ -125,6 +138,7 @@ const MunicipiosPage = () => {
     }
   };
 
+  // Abrir modal para editar
   const abrirModalEditar = (m: any) => {
     setEditId(m.id);
     setNombre(m.nombre || '');
@@ -132,12 +146,14 @@ const MunicipiosPage = () => {
     onOpen();
   };
 
+  // Limpiar formulario
   const limpiarForm = () => {
     setEditId(null);
     setNombre('');
     setDepartamento('');
   };
 
+  // Filtro por nombre y departamento
   const filtered = useMemo(() => {
     if (!filterValue) return municipios;
     return municipios.filter((m) =>
@@ -152,17 +168,20 @@ const MunicipiosPage = () => {
     return filtered.slice(start, start + rowsPerPage);
   }, [filtered, page, rowsPerPage]);
 
+  // Ordenar datos tabla
   const sorted = useMemo(() => {
     const items = [...sliced];
     const { column, direction } = sortDescriptor;
     items.sort((a, b) => {
       const x = a[column as keyof typeof a];
       const y = b[column as keyof typeof b];
-      return x === y ? 0 : (x > y ? 1 : -1) * (direction === 'ascending' ? 1 : -1);
+      if (x === y) return 0;
+      return (x > y ? 1 : -1) * (direction === 'ascending' ? 1 : -1);
     });
     return items;
   }, [sliced, sortDescriptor]);
 
+  // Renderizado de celdas
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
       case 'nombre':
@@ -179,33 +198,45 @@ const MunicipiosPage = () => {
         return (
           <Dropdown>
             <DropdownTrigger>
-              <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
+              <Button
+                isIconOnly
+                size="sm"
+                variant="light"
+                className="rounded-full text-[#0D1324]"
+                aria-label="Acciones"
+              >
                 <MoreVertical />
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              <DropdownItem key={`editar-${item.id}`} onPress={() => abrirModalEditar(item)}>
+              <DropdownItem onPress={() => abrirModalEditar(item)} startContent={<Pencil size={16} />} key={''}>
                 Editar
               </DropdownItem>
-              <DropdownItem key={`eliminar-${item.id}`} onPress={() => eliminar(item.id)}>
+              <DropdownItem
+                onPress={() => eliminar(item.id)}
+                startContent={<Trash size={16} />}
+                className="text-danger" key={''}              >
                 Eliminar
               </DropdownItem>
             </DropdownMenu>
           </Dropdown>
         );
       default:
-        return item[columnKey as keyof typeof item];
+        return item[columnKey as keyof typeof item] ?? '—';
     }
   };
 
+  // Alternar columnas visibles
   const toggleColumn = (key: string) => {
     setVisibleColumns((prev) => {
       const copy = new Set(prev);
-      copy.has(key) ? copy.delete(key) : copy.add(key);
+      if (copy.has(key)) copy.delete(key);
+      else copy.add(key);
       return copy;
     });
   };
 
+  // Contenido top tabla (filtro, botones)
   const topContent = (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
@@ -222,7 +253,9 @@ const MunicipiosPage = () => {
         <div className="flex gap-3">
           <Dropdown>
             <DropdownTrigger>
-              <Button variant="flat">Columnas</Button>
+              <Button variant="flat" aria-haspopup="listbox">
+                Columnas
+              </Button>
             </DropdownTrigger>
             <DropdownMenu aria-label="Seleccionar columnas">
               {columns
@@ -275,6 +308,7 @@ const MunicipiosPage = () => {
     </div>
   );
 
+  // Contenido pie tabla (paginación)
   const bottomContent = (
     <div className="py-2 px-2 flex justify-center items-center gap-2">
       <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
@@ -295,6 +329,7 @@ const MunicipiosPage = () => {
           <p className="text-sm text-gray-600">Consulta y administra los municipios registrados.</p>
         </header>
 
+        {/* Tabla para desktop */}
         <div className="hidden md:block rounded-xl shadow-sm bg-white overflow-x-auto">
           <Table
             aria-label="Tabla de municipios"
@@ -310,7 +345,11 @@ const MunicipiosPage = () => {
           >
             <TableHeader columns={columns.filter((c) => visibleColumns.has(c.uid))}>
               {(col) => (
-                <TableColumn key={col.uid} align={col.uid === 'actions' ? 'center' : 'start'}>
+                <TableColumn
+                  key={col.uid}
+                  align={col.uid === 'actions' ? 'center' : 'start'}
+                  width={col.uid === 'nombre' ? 300 : undefined}
+                >
                   {col.name}
                 </TableColumn>
               )}
@@ -325,6 +364,7 @@ const MunicipiosPage = () => {
           </Table>
         </div>
 
+        {/* Versión móvil */}
         <div className="grid gap-4 md:hidden">
           {sorted.length === 0 ? (
             <p className="text-center text-gray-500">No se encontraron municipios</p>
@@ -336,7 +376,13 @@ const MunicipiosPage = () => {
                     <h3 className="font-semibold text-lg">{m.nombre}</h3>
                     <Dropdown>
                       <DropdownTrigger>
-                        <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          className="rounded-full text-[#0D1324]"
+                          aria-label="Acciones"
+                        >
                           <MoreVertical />
                         </Button>
                       </DropdownTrigger>
@@ -363,18 +409,42 @@ const MunicipiosPage = () => {
           )}
         </div>
 
-        <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" className="backdrop-blur-sm bg-black/30">
-          <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl">
+        {/* Modal para crear/editar */}
+        <Modal
+          isOpen={isOpen}
+          onOpenChange={onOpenChange}
+          placement="center"
+          className="backdrop-blur-sm bg-black/30"
+          isDismissable
+        >
+          <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl max-w-lg w-full p-6">
             {(onCloseLocal) => (
               <>
                 <ModalHeader>{editId ? 'Editar Municipio' : 'Nuevo Municipio'}</ModalHeader>
                 <ModalBody className="space-y-4">
-                  <Input label="Nombre" placeholder="Ej: Neiva" value={nombre} onValueChange={setNombre} radius="sm" />
-                  <Input label="Departamento" placeholder="Ej: Huila" value={departamento} onValueChange={setDepartamento} radius="sm" />
+                  <Input
+                    label="Nombre"
+                    placeholder="Ej: Neiva"
+                    value={nombre}
+                    onValueChange={setNombre}
+                    radius="sm"
+                    autoFocus
+                  />
+                  <Input
+                    label="Departamento"
+                    placeholder="Ej: Huila"
+                    value={departamento}
+                    onValueChange={setDepartamento}
+                    radius="sm"
+                  />
                 </ModalBody>
-                <ModalFooter>
-                  <Button variant="light" onPress={onCloseLocal}>Cancelar</Button>
-                  <Button variant="flat" onPress={guardar}>{editId ? 'Actualizar' : 'Crear'}</Button>
+                <ModalFooter className="flex justify-end gap-3">
+                  <Button variant="light" onPress={onCloseLocal}>
+                    Cancelar
+                  </Button>
+                  <Button color="primary" onPress={guardar}>
+                    {editId ? 'Actualizar' : 'Crear'}
+                  </Button>
                 </ModalFooter>
               </>
             )}

@@ -1,13 +1,12 @@
-// Api/tipoSitioTable.ts
 import axios from 'axios';
 import {
   TipoSitio,
   TipoSitioFormValues,
 } from '@/types/types/tipo_sitios';
 
-const API_URL = 'http://localhost:3000/tipo-sitio';
+const API_URL = 'http://127.0.0.1:8000/api/tipo-sitios';
 
-// Configuración global para permitir envío de cookies/sesiones
+// Configuración para enviar cookies si usas sesiones
 const config = {
   withCredentials: true,
 };

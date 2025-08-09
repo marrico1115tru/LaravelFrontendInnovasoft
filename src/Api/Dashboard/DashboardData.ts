@@ -29,7 +29,7 @@ interface DashboardData {
   areas: Area[];
 }
 
-// Configuración global para permitir envío de cookies/sesión
+
 const config = {
   withCredentials: true,
 };
@@ -51,9 +51,9 @@ export const useDashboardData = () => {
     const fetchDashboardData = async () => {
       try {
         const [usuariosRes, productosRes, areasRes] = await Promise.all([
-          axios.get("http://localhost:3000/usuarios", config),
-          axios.get("http://localhost:3000/productos", config),
-          axios.get("http://localhost:3000/areas", config),
+          axios.get("http://127.0.0.1:8000/api/usuarios", config),
+          axios.get("http://127.0.0.1:8000/api/productos", config),
+          axios.get("http://127.0.0.1:8000/api/areas", config),
         ]);
 
         setData({

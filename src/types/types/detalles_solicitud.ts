@@ -14,3 +14,10 @@ export interface DetalleSolicitud {
   idProducto: Producto;
   idSolicitud: SolicitudRef;
 }
+
+export interface DetalleSolicitudPayload {
+  cantidadSolicitada: number;
+  observaciones?: string | null;
+  idProducto: { id: number };
+  idSolicitud: { id: number };
+}

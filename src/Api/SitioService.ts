@@ -1,34 +1,39 @@
-// Api/sitioTable.ts
+// src/Api/SitioService.ts
 import axios from 'axios';
-import { Sitio, SitioFormValues } from '@/types/types/Sitio';
 
-const API_URL = 'http://localhost:3000/sitio';
+const API_URL = 'http://127.0.0.1:8000/api/sitios';
 
-// Configuración global para permitir el envío de cookies/sesión
-const config = {
-  withCredentials: true,
+export const getSitios = async () => {
+  const res = await axios.get(API_URL);
+  return res.data; // Debe traer area y tipo_sitio como objetos completos si el backend está bien.
 };
 
-export const getSitios = async (): Promise<Sitio[]> => {
-  const res = await axios.get(API_URL, config);
+export const createSitio = async (data: any) => {
+  // Espera data con { nombre, ubicacion, estado, id_area, id_tipo_sitio }
+  const payload = {
+    nombre: data.nombre,
+    ubicacion: data.ubicacion,
+    estado: data.estado,
+    id_area: data.id_area,
+    id_tipo_sitio: data.id_tipo_sitio,
+  };
+  const res = await axios.post(API_URL, payload);
   return res.data;
 };
 
-export const createSitio = async (
-  data: SitioFormValues
-): Promise<Sitio> => {
-  const res = await axios.post(API_URL, data, config);
+export const updateSitio = async (id: number, data: any) => {
+  const payload = {
+    nombre: data.nombre,
+    ubicacion: data.ubicacion,
+    estado: data.estado,
+    id_area: data.id_area,
+    id_tipo_sitio: data.id_tipo_sitio,
+  };
+  const res = await axios.put(`${API_URL}/${id}`, payload);
   return res.data;
 };
 
-export const updateSitio = async (
-  id: number,
-  data: SitioFormValues
-): Promise<Sitio> => {
-  const res = await axios.put(`${API_URL}/${id}`, data, config);
+export const deleteSitio = async (id: number) => {
+  const res = await axios.delete(`${API_URL}/${id}`);
   return res.data;
-};
-
-export const deleteSitio = async (id: number): Promise<void> => {
-  await axios.delete(`${API_URL}/${id}`, config);
 };

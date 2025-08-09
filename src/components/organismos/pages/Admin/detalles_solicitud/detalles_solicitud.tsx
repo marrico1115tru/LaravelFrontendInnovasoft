@@ -18,8 +18,8 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Checkbox,
   useDisclosure,
+  Checkbox,
   type SortDescriptor,
 } from '@heroui/react';
 import {
@@ -30,17 +30,15 @@ import {
 } from '@/Api/detalles_solicitud';
 import { getProductos } from '@/Api/Productosform';
 import { getSolicitudes } from '@/Api/Solicitudes';
-import { getPermisosPorRuta } from '@/Api/getPermisosPorRuta/PermisosService';
+import { getCategoriasProductos } from '@/Api/Categorias';
+import { getUsuarios } from '@/Api/Usuariosform';
+import axios from 'axios';
 import DefaultLayout from '@/layouts/default';
 import { PlusIcon, MoreVertical, Search as SearchIcon } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 
 const MySwal = withReactContent(Swal);
-
-const ID_ROL_ACTUAL = 1;
 
 const columns = [
   { name: 'ID', uid: 'id', sortable: true },
@@ -49,7 +47,7 @@ const columns = [
   { name: 'Producto', uid: 'producto', sortable: false },
   { name: 'Solicitud', uid: 'solicitud', sortable: false },
   { name: 'Acciones', uid: 'actions' },
-];
+] as const;
 
 const INITIAL_VISIBLE_COLUMNS = [
   'id',
@@ -58,14 +56,23 @@ const INITIAL_VISIBLE_COLUMNS = [
   'producto',
   'solicitud',
   'actions',
-];
+] as const;
+
+type ColumnKey = (typeof columns)[number]['uid'];
+
+const ESTADOS_SOLICITUD = ['PENDIENTE', 'APROBADA', 'RECHAZADA'];
 
 const DetalleSolicitudesPage = () => {
+  // Datos
   const [detalles, setDetalles] = useState<any[]>([]);
   const [productos, setProductos] = useState<any[]>([]);
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
+  const [categorias, setCategorias] = useState<any[]>([]);
+  const [usuarios, setUsuarios] = useState<any[]>([]);
+
+  // UI / filtros / paginación
   const [filterValue, setFilterValue] = useState('');
-  const [visibleColumns, setVisibleColumns] = useState(new Set(INITIAL_VISIBLE_COLUMNS));
+  const [visibleColumns, setVisibleColumns] = useState(new Set<string>(INITIAL_VISIBLE_COLUMNS));
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [page, setPage] = useState(1);
   const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
@@ -73,62 +80,86 @@ const DetalleSolicitudesPage = () => {
     direction: 'ascending',
   });
 
-  const [permisos, setPermisos] = useState({
-    puedeVer: false,
-    puedeCrear: false,
-    puedeEditar: false,
-    puedeEliminar: false,
-  });
-  const [loadingPermisos, setLoadingPermisos] = useState(true);
-
+  // Form detalle
   const [cantidad, setCantidad] = useState<number | undefined>(undefined);
   const [observaciones, setObservaciones] = useState('');
   const [productoSeleccionado, setProductoSeleccionado] = useState<any | null>(null);
   const [solicitudSeleccionada, setSolicitudSeleccionada] = useState<any | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
-
   const { isOpen, onOpenChange, onOpen, onClose } = useDisclosure();
 
-  useEffect(() => {
-    cargarPermisos();
-  }, []);
+  // Modal nuevo producto
+  const {
+    isOpen: isOpenNuevoProducto,
+    onOpen: onOpenNuevoProducto,
+    onOpenChange: onOpenChangeNuevoProducto,
+    onClose: onCloseNuevoProducto,
+  } = useDisclosure();
+  const [nuevoProductoNombre, setNuevoProductoNombre] = useState('');
+  const [nuevoProductoDescripcion, setNuevoProductoDescripcion] = useState('');
+  const [nuevoProductoFechaVencimiento, setNuevoProductoFechaVencimiento] = useState('');
+  const [nuevoProductoCategoriaId, setNuevoProductoCategoriaId] = useState<string>('');
 
-  const cargarPermisos = async () => {
-    setLoadingPermisos(true);
-    try {
-      const p = await getPermisosPorRuta('/DetalleSolicitudPage', ID_ROL_ACTUAL);
-      setPermisos(p.data || p);
-      if ((p.data || p).puedeVer) {
-        cargarDatos();
+  // Modal nueva solicitud
+  const {
+    isOpen: isOpenNuevaSolicitud,
+    onOpen: onOpenNuevaSolicitud,
+    onOpenChange: onOpenChangeNuevaSolicitud,
+    onClose: onCloseNuevaSolicitud,
+  } = useDisclosure();
+  const [nuevoEstadoSolicitud, setNuevoEstadoSolicitud] = useState(ESTADOS_SOLICITUD[0]);
+  const [nuevaFechaSolicitud, setNuevaFechaSolicitud] = useState('');
+  const [nuevoSolicitanteId, setNuevoSolicitanteId] = useState<string>('');
+
+  // Alternar columnas visibles
+  const toggleColumn = (uid: string) => {
+    setVisibleColumns((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(uid)) {
+        if (uid === 'actions') return prev;
+        newSet.delete(uid);
+      } else {
+        newSet.add(uid);
       }
-    } catch (error) {
-      console.error('Error cargando permisos:', error);
-      setPermisos({
-        puedeVer: false,
-        puedeCrear: false,
-        puedeEditar: false,
-        puedeEliminar: false,
-      });
-      await MySwal.fire('Error', 'No se pudieron cargar los permisos', 'error');
-    } finally {
-      setLoadingPermisos(false);
-    }
+      return newSet;
+    });
   };
 
+  // Cargar datos
   const cargarDatos = async () => {
     try {
-      const [det, prods, sols] = await Promise.all([getDetalleSolicitudes(), getProductos(), getSolicitudes()]);
+      const [det, prods, solsRaw, cats, usrs] = await Promise.all([
+        getDetalleSolicitudes(),
+        getProductos(),
+        getSolicitudes(),
+        getCategoriasProductos(),
+        getUsuarios(),
+      ]);
+
+      // Mapear solicitudes para convertir estado_solicitud a estadoSolicitud camelCase
+      const sols = solsRaw.map((s: any) => ({
+        ...s,
+        estadoSolicitud: s.estado_solicitud || s.estadoSolicitud, // Map camelCase para frontend
+      }));
+
       setDetalles(det);
       setProductos(prods);
       setSolicitudes(sols);
-    } catch (err) {
-      console.error('Error cargando datos', err);
+      setCategorias(cats);
+      setUsuarios(usrs);
+    } catch (error) {
+      console.error('Error cargando datos:', error);
       await MySwal.fire('Error', 'Error cargando datos', 'error');
     }
   };
 
+  useEffect(() => {
+    cargarDatos();
+  }, []);
+
+  // Funciones CRUD
+
   const eliminar = async (id: number) => {
-    if (!permisos.puedeEliminar) return;
     const result = await MySwal.fire({
       title: '¿Eliminar registro?',
       text: 'No se podrá recuperar.',
@@ -138,68 +169,63 @@ const DetalleSolicitudesPage = () => {
       cancelButtonText: 'Cancelar',
     });
     if (!result.isConfirmed) return;
-
     try {
       await deleteDetalleSolicitud(id);
       await MySwal.fire('Eliminado', `Registro eliminado: ID ${id}`, 'success');
       await cargarDatos();
-    } catch {
+    } catch (error) {
+      console.error('Error eliminando:', error);
       await MySwal.fire('Error', 'Error eliminando registro', 'error');
     }
   };
 
+  // Guardar detalle (crear o actualizar)
   const guardar = async () => {
-    if (!permisos.puedeCrear && !permisos.puedeEditar) return;
-
     if (!cantidad || cantidad <= 0) {
       await MySwal.fire('Error', 'La cantidad solicitada debe ser mayor que cero', 'error');
       return;
     }
-    if (!productoSeleccionado) {
-      await MySwal.fire('Error', 'Debes seleccionar un producto', 'error');
+    if (!productoSeleccionado?.id) {
+      await MySwal.fire('Error', 'Debes seleccionar un producto válido', 'error');
       return;
     }
-    if (!solicitudSeleccionada) {
-      await MySwal.fire('Error', 'Debes seleccionar una solicitud', 'error');
+    if (!solicitudSeleccionada?.id) {
+      await MySwal.fire('Error', 'Debes seleccionar una solicitud válida', 'error');
       return;
     }
 
-    const payload = {
+    // Construir payload
+    const payload: any = {
       cantidadSolicitada: cantidad,
-      observaciones: observaciones || null,
-      idProducto: {
-        id: productoSeleccionado.id,
-        nombre: productoSeleccionado.nombre,
-      },
-      idSolicitud: {
-        id: solicitudSeleccionada.id,
-      },
+      observaciones: observaciones?.trim() || null,
+      idProducto: { id: productoSeleccionado.id },
+      idSolicitud: { id: solicitudSeleccionada.id },
     };
 
     try {
-      if (editId) {
-        if (!permisos.puedeEditar) return;
+      if (editId !== null) {
         await updateDetalleSolicitud(editId, payload);
         await MySwal.fire('Éxito', 'Detalle actualizado', 'success');
       } else {
-        if (!permisos.puedeCrear) return;
         await createDetalleSolicitud(payload);
         await MySwal.fire('Éxito', 'Detalle creado', 'success');
       }
       onClose();
       limpiarFormulario();
       await cargarDatos();
-    } catch {
-      await MySwal.fire('Error', 'Error guardando registro', 'error');
+    } catch (e: any) {
+      console.error('Error guardando detalle:', e);
+      const msg = e?.response?.data?.message || 'Error guardando registro';
+      await MySwal.fire('Error', msg, 'error');
     }
   };
 
-  const abrirModalEditar = (d: any) => {
-    setEditId(d.id);
-    setCantidad(d.cantidadSolicitada);
-    setObservaciones(d.observaciones || '');
-    setProductoSeleccionado(d.idProducto);
-    setSolicitudSeleccionada(d.idSolicitud);
+  const abrirModalEditar = (item: any) => {
+    setEditId(item.id);
+    setCantidad(item.cantidadSolicitada);
+    setObservaciones(item.observaciones || '');
+    setProductoSeleccionado(item.idProducto || null);
+    setSolicitudSeleccionada(item.idSolicitud || null);
     onOpen();
   };
 
@@ -211,21 +237,102 @@ const DetalleSolicitudesPage = () => {
     setSolicitudSeleccionada(null);
   };
 
+  // Crear producto rápido
+  const crearProductoRapido = async () => {
+    if (!nuevoProductoNombre.trim()) {
+      await MySwal.fire('Error', 'El nombre del producto es obligatorio', 'warning');
+      return;
+    }
+    if (!nuevoProductoCategoriaId) {
+      await MySwal.fire('Error', 'Debe seleccionar una categoría', 'warning');
+      return;
+    }
+
+    try {
+      const productPayload = {
+        nombre: nuevoProductoNombre.trim(),
+        descripcion: nuevoProductoDescripcion.trim() || null,
+        fechaVencimiento: nuevoProductoFechaVencimiento || null,
+        categoriaId: parseInt(nuevoProductoCategoriaId),
+      };
+
+      await axios.post('http://localhost:3000/productos', productPayload, {
+        headers: { 'Content-Type': 'application/json' },
+        withCredentials: true,
+      });
+
+      setNuevoProductoNombre('');
+      setNuevoProductoDescripcion('');
+      setNuevoProductoFechaVencimiento('');
+      setNuevoProductoCategoriaId('');
+      onCloseNuevoProducto();
+      await cargarDatos();
+      await MySwal.fire('Éxito', 'Producto creado exitosamente', 'success');
+    } catch (e: any) {
+      console.error('Error creando producto:', e);
+      let errorMessage = 'Error creando producto.';
+      if (e.response?.data?.message) errorMessage = e.response.data.message;
+      else if (e.response?.data?.error) errorMessage = e.response.data.error;
+      else if (e.message) errorMessage = e.message;
+      await MySwal.fire('Error', errorMessage, 'error');
+    }
+  };
+
+  // Crear solicitud rápida
+  const crearSolicitudRapida = async () => {
+    if (!nuevaFechaSolicitud) {
+      await MySwal.fire('Error', 'La fecha es obligatoria', 'warning');
+      return;
+    }
+    if (!nuevoEstadoSolicitud) {
+      await MySwal.fire('Error', 'El estado de la solicitud es obligatorio', 'warning');
+      return;
+    }
+    if (!nuevoSolicitanteId) {
+      await MySwal.fire('Error', 'Debe seleccionar un solicitante', 'warning');
+      return;
+    }
+
+    try {
+      const solicitudPayload = {
+        fechaSolicitud: nuevaFechaSolicitud,
+        estadoSolicitud: nuevoEstadoSolicitud,
+        idUsuarioSolicitante: parseInt(nuevoSolicitanteId),
+      };
+
+      await axios.post('http://localhost:3000/solicitudes', solicitudPayload, {
+        headers: { 'Content-Type': 'application/json' },
+        withCredentials: true,
+      });
+
+      setNuevaFechaSolicitud('');
+      setNuevoEstadoSolicitud(ESTADOS_SOLICITUD[0]);
+      setNuevoSolicitanteId('');
+      onCloseNuevaSolicitud();
+      await cargarDatos();
+      await MySwal.fire('Éxito', 'Solicitud creada exitosamente', 'success');
+    } catch (e: any) {
+      console.error('Error creando solicitud:', e);
+      let errorMessage = 'Error creando solicitud.';
+      if (e.response?.data?.message) errorMessage = e.response.data.message;
+      else if (e.response?.data?.error) errorMessage = e.response.data.error;
+      else if (e.message) errorMessage = e.message;
+      await MySwal.fire('Error', errorMessage, 'error');
+    }
+  };
+
+  // Filtrado y paginación
   const filtered = useMemo(() => {
     return filterValue
       ? detalles.filter((d) =>
-          (
-            `${d.cantidadSolicitada} ${d.observaciones || ''} ${
-              d.idProducto?.nombre || ''
-            } ${d.idSolicitud?.estadoSolicitud || ''}`
-          )
+          `${d.cantidadSolicitada} ${d.observaciones || ''} ${d.idProducto?.nombre || ''} ${d.idSolicitud?.estadoSolicitud || ''}`
             .toLowerCase()
             .includes(filterValue.toLowerCase())
         )
       : detalles;
   }, [detalles, filterValue]);
 
-  const pages = Math.ceil(filtered.length / rowsPerPage) || 1;
+  const pages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
 
   const sliced = useMemo(() => {
     const start = (page - 1) * rowsPerPage;
@@ -243,104 +350,51 @@ const DetalleSolicitudesPage = () => {
     return items;
   }, [sliced, sortDescriptor]);
 
-  const renderCell = (item: any, columnKey: string) => {
+  // Función para inicializar fecha actual en el modal
+  const inicializarModalNuevaSolicitud = () => {
+    const hoy = new Date();
+    const fechaFormateada = hoy.toISOString().split('T')[0];
+    setNuevaFechaSolicitud(fechaFormateada);
+    onOpenNuevaSolicitud();
+  };
+
+  // Render celda
+  const renderCell = (item: any, columnKey: ColumnKey) => {
     switch (columnKey) {
       case 'cantidadSolicitada':
         return <span className="text-sm text-gray-800">{item.cantidadSolicitada}</span>;
       case 'observaciones':
-        return (
-          <span className="text-sm text-gray-600 break-words max-w-[16rem]">
-            {item.observaciones || '—'}
-          </span>
-        );
+        return <span className="text-sm text-gray-600 break-words max-w-[16rem]">{item.observaciones || '—'}</span>;
       case 'producto':
-        return (
-          <span className="text-sm text-gray-600">
-            {item.idProducto?.nombre || '—'}
-          </span>
-        );
+        return <span className="text-sm text-gray-600">{item.idProducto?.nombre || '—'}</span>;
       case 'solicitud':
-        return (
-          <span className="text-sm text-gray-600">
-            {item.idSolicitud?.estadoSolicitud || '—'}
-          </span>
-        );
+        return <span className="text-sm text-gray-600">{item.idSolicitud?.estadoSolicitud || '—'}</span>;
       case 'actions':
-        if (!permisos.puedeEditar && !permisos.puedeEliminar) return null;
         return (
           <Dropdown>
             <DropdownTrigger>
-              <Button
-                isIconOnly
-                size="sm"
-                variant="light"
-                className="rounded-full text-[#0D1324]"
-              >
-                <MoreVertical />
-              </Button>
+              <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]"><MoreVertical /></Button>
             </DropdownTrigger>
             <DropdownMenu>
-              {permisos.puedeEditar ? (
-                <DropdownItem onPress={() => abrirModalEditar(item)} key={`editar-${item.id}`}>
-                  Editar
-                </DropdownItem>
-              ) : null}
-              {permisos.puedeEliminar ? (
-                <DropdownItem onPress={() => eliminar(item.id)} key={`eliminar-${item.id}`}>
-                  Eliminar
-                </DropdownItem>
-              ) : null}
+              <DropdownItem key={`editar-${item.id}`} onPress={() => abrirModalEditar(item)}>Editar</DropdownItem>
+              <DropdownItem key={`eliminar-${item.id}`} onPress={() => eliminar(item.id)} className="text-danger">Eliminar</DropdownItem>
             </DropdownMenu>
           </Dropdown>
         );
       default:
-        return item[columnKey as keyof typeof item];
+        return item[columnKey as keyof typeof item] || '—';
     }
   };
-
-  const toggleColumn = (key: string) => {
-    setVisibleColumns((prev) => {
-      const copy = new Set(prev);
-      if (copy.has(key)) copy.delete(key);
-      else copy.add(key);
-      return copy;
-    });
-  };
-
-  if (loadingPermisos) {
-    return (
-      <DefaultLayout>
-        <div className="p-6">
-          <div className="bg-blue-100 text-blue-700 p-4 rounded shadow text-center">
-            Cargando permisos...
-          </div>
-        </div>
-      </DefaultLayout>
-    );
-  }
-
-  if (!permisos.puedeVer) {
-    return (
-      <DefaultLayout>
-        <div className="p-6">
-          <div className="bg-red-100 text-red-700 p-4 rounded shadow text-center">
-            No tienes permiso para ver esta página.
-          </div>
-        </div>
-      </DefaultLayout>
-    );
-  }
 
   return (
     <DefaultLayout>
       <div className="p-6 space-y-6">
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">
-            📝 Detalle de Solicitudes
-          </h1>
+          <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">📝 Detalle de Solicitudes</h1>
           <p className="text-sm text-gray-600">Gestiona los ítems de cada solicitud.</p>
         </header>
 
+        {/* Tabla y controles */}
         <div className="hidden md:block rounded-xl shadow-sm bg-white overflow-x-auto">
           <Table
             aria-label="Tabla detalle solicitud"
@@ -358,7 +412,7 @@ const DetalleSolicitudesPage = () => {
                     onValueChange={setFilterValue}
                     onClear={() => setFilterValue('')}
                   />
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 items-center">
                     <Dropdown>
                       <DropdownTrigger>
                         <Button variant="flat">Columnas</Button>
@@ -367,7 +421,7 @@ const DetalleSolicitudesPage = () => {
                         {columns
                           .filter((c) => c.uid !== 'actions')
                           .map((col) => (
-                            <DropdownItem key={col.uid} className="py-1 px-2">
+                            <DropdownItem key={col.uid} className="flex items-center gap-2">
                               <Checkbox
                                 isSelected={visibleColumns.has(col.uid)}
                                 onValueChange={() => toggleColumn(col.uid)}
@@ -379,20 +433,19 @@ const DetalleSolicitudesPage = () => {
                           ))}
                       </DropdownMenu>
                     </Dropdown>
-                    {permisos.puedeCrear && (
-                      <Button
-                        className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
-                        endContent={<PlusIcon />}
-                        onPress={() => {
-                          limpiarFormulario();
-                          onOpen();
-                        }}
-                      >
-                        Nuevo Detalle
-                      </Button>
-                    )}
+                    <Button
+                      className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
+                      endContent={<PlusIcon />}
+                      onPress={() => {
+                        limpiarFormulario();
+                        onOpen();
+                      }}
+                    >
+                      Nuevo Detalle
+                    </Button>
                   </div>
                 </div>
+
                 <div className="flex items-center justify-between">
                   <span className="text-default-400 text-sm">Total {detalles.length} registros</span>
                   <label className="flex items-center text-default-400 text-sm">
@@ -417,37 +470,18 @@ const DetalleSolicitudesPage = () => {
             }
             bottomContent={
               <div className="py-2 px-2 flex justify-center items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="flat"
-                  isDisabled={page === 1}
-                  onPress={() => setPage(page - 1)}
-                >
+                <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
                   Anterior
                 </Button>
-                <Pagination
-                  isCompact
-                  showControls
-                  page={page}
-                  total={pages}
-                  onChange={setPage}
-                />
-                <Button
-                  size="sm"
-                  variant="flat"
-                  isDisabled={page === pages}
-                  onPress={() => setPage(page + 1)}
-                >
+                <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
+                <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>
                   Siguiente
                 </Button>
               </div>
             }
             sortDescriptor={sortDescriptor}
             onSortChange={setSortDescriptor}
-            classNames={{
-              th: 'py-3 px-4 bg-[#e8ecf4] text-[#0D1324] font-semibold text-sm',
-              td: 'align-middle py-3 px-4',
-            }}
+            classNames={{ th: 'py-3 px-4 bg-[#e8ecf4] text-[#0D1324] font-semibold text-sm', td: 'align-middle py-3 px-4' }}
           >
             <TableHeader columns={columns.filter((c) => visibleColumns.has(c.uid))}>
               {(col) => (
@@ -463,66 +497,19 @@ const DetalleSolicitudesPage = () => {
             <TableBody items={sorted} emptyContent="No se encontraron registros">
               {(item) => (
                 <TableRow key={item.id}>
-                  {(col) => <TableCell>{renderCell(item, col as string)}</TableCell>}
+                  {(col) => <TableCell>{renderCell(item, col as ColumnKey)}</TableCell>}
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </div>
 
-        <div className="grid gap-4 md:hidden">
-          {sorted.length === 0 && (
-            <p className="text-center text-gray-500">No se encontraron registros</p>
-          )}
-          {sorted.map((d) => (
-            <Card key={d.id} className="shadow-sm">
-              <CardContent className="space-y-2 p-4">
-                <div className="flex justify-between items-start">
-                  <h3 className="font-semibold text-lg">Cant: {d.cantidadSolicitada}</h3>
-                  {(permisos.puedeEditar || permisos.puedeEliminar) ? (
-                    <Dropdown>
-                      <DropdownTrigger>
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="light"
-                          className="rounded-full text-[#0D1324]"
-                        >
-                          <MoreVertical />
-                        </Button>
-                      </DropdownTrigger>
-                      <DropdownMenu>
-                        {permisos.puedeEditar ? (
-                          <DropdownItem onPress={() => abrirModalEditar(d)} key={`editar-${d.id}`}>Editar</DropdownItem>
-                        ) : null}
-                        {permisos.puedeEliminar ? (
-                          <DropdownItem onPress={() => eliminar(d.id)} key={`eliminar-${d.id}`}>Eliminar</DropdownItem>
-                        ) : null}
-                      </DropdownMenu>
-                    </Dropdown>
-                  ) : null}
-                </div>
-                <p className="text-sm text-gray-600 break-words">
-                  <span className="font-medium">Obs:</span> {d.observaciones || '—'}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Producto:</span> {d.idProducto?.nombre || '—'}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Solicitud:</span>{' '}
-                  {d.idSolicitud?.estadoSolicitud || '—'}
-                </p>
-                <p className="text-xs text-gray-400">ID: {d.id}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" className="backdrop-blur-sm bg-black/30">
+        {/* Modal Detalle */}
+        <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" className="backdrop-blur-sm bg-black/30" isDismissable>
           <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl max-w-lg w-full p-6">
-            {(onCloseLocal) => (
+            {() => (
               <>
-                <ModalHeader>{editId ? 'Editar Detalle' : 'Nuevo Detalle'}</ModalHeader>
+                <ModalHeader>{editId !== null ? 'Editar Detalle' : 'Nuevo Detalle'}</ModalHeader>
                 <ModalBody className="space-y-4">
                   <Input
                     label="Cantidad solicitada"
@@ -531,6 +518,7 @@ const DetalleSolicitudesPage = () => {
                     value={typeof cantidad === 'number' ? cantidad.toString() : ''}
                     onValueChange={(v) => setCantidad(v ? Number(v) : undefined)}
                     radius="sm"
+                    autoFocus
                   />
                   <Input
                     label="Observaciones"
@@ -539,52 +527,173 @@ const DetalleSolicitudesPage = () => {
                     onValueChange={setObservaciones}
                     radius="sm"
                   />
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">
-                      Producto
-                    </label>
-                    <select
-                      value={productoSeleccionado?.id || ''}
-                      onChange={(e) => {
-                        const id = Number(e.target.value);
-                        const producto = productos.find((p) => p.id === id) || null;
-                        setProductoSeleccionado(producto);
-                      }}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Seleccione un producto</option>
-                      {productos.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.nombre}
-                        </option>
-                      ))}
-                    </select>
+
+                  {/* Producto selector with plus button */}
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <label className="text-sm font-medium text-gray-700 mb-1 block">Producto</label>
+                      <select
+                        value={productoSeleccionado?.id || ''}
+                        onChange={(e) => setProductoSeleccionado(productos.find((p) => p.id === Number(e.target.value)) || null)}
+                        className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Seleccione un producto</option>
+                        {productos.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <Button isIconOnly onPress={onOpenNuevoProducto} className="bg-[#1a2133] text-white">
+                      <PlusIcon />
+                    </Button>
                   </div>
+
+                  {/* Solicitud selector with plus button */}
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <label className="text-sm font-medium text-gray-700 mb-1 block">Solicitud</label>
+                      <select
+                        value={solicitudSeleccionada?.id || ''}
+                        onChange={(e) => setSolicitudSeleccionada(solicitudes.find((s) => s.id === Number(e.target.value)) || null)}
+                        className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Seleccione una solicitud</option>
+                        {solicitudes.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {`${s.id} - ${s.estadoSolicitud || s.estado_solicitud || '—'}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <Button isIconOnly onPress={inicializarModalNuevaSolicitud} className="bg-[#1a2133] text-white">
+                      <PlusIcon />
+                    </Button>
+                  </div>
+                </ModalBody>
+                <ModalFooter className="flex justify-end gap-3">
+                  <Button variant="light" onPress={onClose}>
+                    Cancelar
+                  </Button>
+                  <Button color="primary" onPress={guardar}>
+                    {editId !== null ? 'Actualizar' : 'Crear'}
+                  </Button>
+                </ModalFooter>
+              </>
+            )}
+          </ModalContent>
+        </Modal>
+
+        {/* Modal Nuevo Producto */}
+        <Modal isOpen={isOpenNuevoProducto} onOpenChange={onOpenChangeNuevoProducto} isDismissable>
+          <ModalContent>
+            {() => (
+              <>
+                <ModalHeader>Nuevo Producto</ModalHeader>
+                <ModalBody className="space-y-4">
+                  <Input
+                    label="Nombre"
+                    autoFocus
+                    placeholder="Nombre del producto"
+                    value={nuevoProductoNombre}
+                    onValueChange={setNuevoProductoNombre}
+                  />
+                  <Input
+                    label="Descripción"
+                    placeholder="Descripción"
+                    value={nuevoProductoDescripcion}
+                    onValueChange={setNuevoProductoDescripcion}
+                  />
+                  <Input
+                    label="Fecha de Vencimiento"
+                    type="date"
+                    value={nuevoProductoFechaVencimiento}
+                    onValueChange={setNuevoProductoFechaVencimiento}
+                  />
                   <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">
-                      Solicitud
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
                     <select
-                      value={solicitudSeleccionada?.id || ''}
-                      onChange={(e) => {
-                        const id = Number(e.target.value);
-                        const solicitud = solicitudes.find((s) => s.id === id) || null;
-                        setSolicitudSeleccionada(solicitud);
-                      }}
+                      value={nuevoProductoCategoriaId}
+                      onChange={(e) => setNuevoProductoCategoriaId(e.target.value)}
                       className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="">Seleccione una solicitud</option>
-                      {solicitudes.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {`${s.id} - ${s.estadoSolicitud}`}
+                      <option value="">Seleccione una categoría</option>
+                      {categorias.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.nombre}
                         </option>
                       ))}
                     </select>
                   </div>
                 </ModalBody>
                 <ModalFooter>
-                  <Button variant="light" onPress={onCloseLocal}>Cancelar</Button>
-                  <Button variant="flat" onPress={guardar}>{editId ? 'Actualizar' : 'Crear'}</Button>
+                  <Button variant="light" onPress={onCloseNuevoProducto}>
+                    Cancelar
+                  </Button>
+                  <Button color="primary" onPress={crearProductoRapido}>
+                    Crear Producto
+                  </Button>
+                </ModalFooter>
+              </>
+            )}
+          </ModalContent>
+        </Modal>
+
+        {/* Modal Nueva Solicitud */}
+        <Modal isOpen={isOpenNuevaSolicitud} onOpenChange={onOpenChangeNuevaSolicitud} isDismissable>
+          <ModalContent>
+            {() => (
+              <>
+                <ModalHeader>Nueva Solicitud</ModalHeader>
+                <ModalBody className="space-y-4">
+                  <Input
+                    label="Fecha de Solicitud"
+                    type="date"
+                    autoFocus
+                    value={nuevaFechaSolicitud}
+                    onValueChange={setNuevaFechaSolicitud}
+                    isRequired
+                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                    <select
+                      value={nuevoEstadoSolicitud}
+                      onChange={(e) => setNuevoEstadoSolicitud(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      {ESTADOS_SOLICITUD.map((estado) => (
+                        <option key={estado} value={estado}>
+                          {estado}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Solicitante</label>
+                    <select
+                      value={nuevoSolicitanteId}
+                      onChange={(e) => setNuevoSolicitanteId(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="">Seleccione un solicitante</option>
+                      {usuarios.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.nombreCompleto || u.nombre || u.email || `Usuario ${u.id}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </ModalBody>
+                <ModalFooter>
+                  <Button variant="light" onPress={onCloseNuevaSolicitud}>
+                    Cancelar
+                  </Button>
+                  <Button color="primary" onPress={crearSolicitudRapida}>
+                    Crear Solicitud
+                  </Button>
                 </ModalFooter>
               </>
             )}

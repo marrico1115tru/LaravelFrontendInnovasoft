@@ -3,7 +3,6 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FaUser, FaLock } from "react-icons/fa";
-import { login } from "@/Api/auth/auth";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -13,18 +12,12 @@ const Login = () => {
 
   const handleLogin = async () => {
     setError("");
-    try {
-      await login(email.trim(), password.trim());
 
-     
-      navigate("/Home");
-    } catch (err: any) {
-      console.error("❌ Error de autenticación:", err);
-      if (err.response?.status === 401) {
-        setError("Credenciales inválidas");
-      } else {
-        setError("Error al conectar con el servidor");
-      }
+    // Simulación básica sin API
+    if (email.trim() === "admin@sena.edu.co" && password.trim() === "123456") {
+      navigate("/Home"); // Redirige si las credenciales son correctas
+    } else {
+      setError("Credenciales inválidas");
     }
   };
 
@@ -84,6 +77,7 @@ const Login = () => {
             Iniciar
           </Button>
         </div>
+
         <p
           onClick={() => navigate("/recuperar")}
           className="text-center text-xs text-white/70 mt-4 hover:underline cursor-pointer"

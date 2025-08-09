@@ -1,4 +1,3 @@
-// src/pages/UsuariosPage.tsx
 import { useEffect, useMemo, useState } from 'react';
 import {
   Table,
@@ -17,6 +16,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalFooter,
   ModalHeader,
   Checkbox,
   Select,
@@ -24,15 +24,18 @@ import {
   useDisclosure,
   type SortDescriptor,
 } from '@heroui/react';
+
 import {
   getUsuarios,
   createUsuario,
   updateUsuario,
   deleteUsuario,
 } from '@/Api/Usuariosform';
+
 import { getAreas, createArea } from '@/Api/AreasService';
 import { getFichasFormacion, createFichaFormacion } from '@/Api/fichasFormacion';
 import { getRoles, createRol } from '@/Api/RolService';
+
 import DefaultLayout from '@/layouts/default';
 import { PlusIcon, MoreVertical, Search as SearchIcon } from 'lucide-react';
 
@@ -52,6 +55,7 @@ const columns = [
   { name: 'Rol', uid: 'rol', sortable: false },
   { name: 'Acciones', uid: 'actions' },
 ];
+
 const INITIAL_VISIBLE_COLUMNS = [
   'id',
   'nombreCompleto',
@@ -162,24 +166,16 @@ const UsuariosPage = () => {
       return;
     }
 
-    const areaObj = areas.find(a => String(a.id) === form.idArea);
-    const fichaObj = fichas.find(f => String(f.id) === form.idFicha);
-    const rolObj = roles.find(r => String(r.id) === form.idRol);
-
-    if (!areaObj || !fichaObj || !rolObj) {
-      await MySwal.fire('Error', 'Selección inválida de Área, Ficha o Rol', 'error');
-      return;
-    }
-
+    // Pasamos sólo los IDs planos
     const payload: any = {
       nombre: form.nombre,
       apellido: form.apellido || null,
       cedula: form.cedula || null,
       email: form.email || null,
       telefono: form.telefono || null,
-      idArea: areaObj,
-      idFichaFormacion: fichaObj,
-      rol: rolObj,
+      id_area: form.idArea,
+      id_ficha: form.idFicha,
+      id_rol: form.idRol,
     };
 
     if (!editId) {
@@ -227,9 +223,10 @@ const UsuariosPage = () => {
       email: u.email || '',
       telefono: u.telefono || '',
       password: '',
-      idArea: u.idArea?.id?.toString() || '',
-      idFicha: u.idFichaFormacion?.id?.toString() || '',
-      idRol: u.rol?.id?.toString() || '',
+      // Ajuste a nombres exactos según tu backend
+      idArea: u.area?.id?.toString() || u.id_area?.toString() || '',
+      idFicha: u.ficha?.id?.toString() || u.id_ficha?.toString() || '',
+      idRol: u.rol?.id?.toString() || u.id_rol?.toString() || '',
     });
     openUser();
   };
@@ -270,15 +267,13 @@ const UsuariosPage = () => {
           </span>
         );
       case 'area':
-        return <span className="text-sm text-gray-600">{item.idArea?.nombreArea ?? '—'}</span>;
+        // Usa nombre_area según backend
+        return <span className="text-sm text-gray-600">{item.area?.nombre_area ?? '—'}</span>;
       case 'ficha':
-        return (
-          <span className="text-sm text-gray-600">
-            {item.idFichaFormacion?.nombre ?? '—'}
-          </span>
-        );
+        return <span className="text-sm text-gray-600">{item.ficha?.nombre ?? '—'}</span>;
       case 'rol':
-        return <span className="text-sm text-gray-600">{item.rol?.nombreRol ?? '—'}</span>;
+        // Usa nombre_rol según backend
+        return <span className="text-sm text-gray-600">{item.rol?.nombre_rol ?? '—'}</span>;
       case 'actions':
         return (
           <Dropdown>
@@ -288,6 +283,7 @@ const UsuariosPage = () => {
                 size="sm"
                 variant="light"
                 className="rounded-full text-[#0D1324]"
+                aria-label="Opciones"
               >
                 <MoreVertical />
               </Button>
@@ -370,6 +366,8 @@ const UsuariosPage = () => {
   return (
     <DefaultLayout>
       <div className="p-6 space-y-6">
+
+        {/* Header */}
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">
             👥 Gestión de Usuarios
@@ -377,6 +375,7 @@ const UsuariosPage = () => {
           <p className="text-sm text-gray-600">Consulta y administra los usuarios registrados.</p>
         </header>
 
+        {/* Table desktop */}
         <div className="hidden md:block rounded-xl shadow-sm bg-white overflow-x-auto">
           <Table
             aria-label="Tabla de usuarios"
@@ -445,12 +444,12 @@ const UsuariosPage = () => {
                     <select
                       className="bg-transparent outline-none text-default-600 ml-1"
                       value={rowsPerPage}
-                      onChange={e => {
+                      onChange={(e) => {
                         setRowsPerPage(parseInt(e.target.value, 10));
                         setPage(1);
                       }}
                     >
-                      {[5, 10, 15].map(n => (
+                      {[5, 10, 15].map((n) => (
                         <option key={n} value={n}>
                           {n}
                         </option>
@@ -462,11 +461,27 @@ const UsuariosPage = () => {
             }
             bottomContent={
               <div className="py-2 px-2 flex justify-center items-center gap-2">
-                <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  isDisabled={page === 1}
+                  onPress={() => setPage(page - 1)}
+                >
                   Anterior
                 </Button>
-                <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
-                <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>
+                <Pagination
+                  isCompact
+                  showControls
+                  page={page}
+                  total={pages}
+                  onChange={setPage}
+                />
+                <Button
+                  size="sm"
+                  variant="flat"
+                  isDisabled={page === pages}
+                  onPress={() => setPage(page + 1)}
+                >
                   Siguiente
                 </Button>
               </div>
@@ -478,8 +493,8 @@ const UsuariosPage = () => {
               td: 'align-middle py-3 px-4',
             }}
           >
-            <TableHeader columns={columns.filter(c => visibleColumns.has(c.uid))}>
-              {col => (
+            <TableHeader columns={columns.filter((c) => visibleColumns.has(c.uid))}>
+              {(col) => (
                 <TableColumn
                   key={col.uid}
                   align={col.uid === 'actions' ? 'center' : 'start'}
@@ -490,9 +505,9 @@ const UsuariosPage = () => {
               )}
             </TableHeader>
             <TableBody items={sorted} emptyContent="No se encontraron usuarios">
-              {item => (
+              {(item) => (
                 <TableRow key={item.id}>
-                  {col => <TableCell>{renderCell(item, String(col))}</TableCell>}
+                  {(col) => <TableCell>{renderCell(item, String(col))}</TableCell>}
                 </TableRow>
               )}
             </TableBody>
@@ -516,7 +531,7 @@ const UsuariosPage = () => {
                 <ModalBody>
                   <form
                     className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4"
-                    onSubmit={e => {
+                    onSubmit={(e) => {
                       e.preventDefault();
                       guardar();
                     }}
@@ -524,33 +539,33 @@ const UsuariosPage = () => {
                     <Input
                       label="Nombre"
                       value={form.nombre}
-                      onValueChange={v => setForm(p => ({ ...p, nombre: v }))}
+                      onValueChange={(v) => setForm((p) => ({ ...p, nombre: v }))}
                       radius="sm"
                       required
                     />
                     <Input
                       label="Apellido"
                       value={form.apellido}
-                      onValueChange={v => setForm(p => ({ ...p, apellido: v }))}
+                      onValueChange={(v) => setForm((p) => ({ ...p, apellido: v }))}
                       radius="sm"
                     />
                     <Input
                       label="Cédula"
                       value={form.cedula}
-                      onValueChange={v => setForm(p => ({ ...p, cedula: v }))}
+                      onValueChange={(v) => setForm((p) => ({ ...p, cedula: v }))}
                       radius="sm"
                     />
                     <Input
                       label="Email"
                       type="email"
                       value={form.email}
-                      onValueChange={v => setForm(p => ({ ...p, email: v }))}
+                      onValueChange={(v) => setForm((p) => ({ ...p, email: v }))}
                       radius="sm"
                     />
                     <Input
                       label="Teléfono"
                       value={form.telefono}
-                      onValueChange={v => setForm(p => ({ ...p, telefono: v }))}
+                      onValueChange={(v) => setForm((p) => ({ ...p, telefono: v }))}
                       radius="sm"
                     />
                     {!editId && (
@@ -558,7 +573,7 @@ const UsuariosPage = () => {
                         label="Contraseña"
                         type="password"
                         value={form.password}
-                        onValueChange={v => setForm(p => ({ ...p, password: v }))}
+                        onValueChange={(v) => setForm((p) => ({ ...p, password: v }))}
                         radius="sm"
                         required
                       />
@@ -568,11 +583,11 @@ const UsuariosPage = () => {
                       <Select
                         label="Área"
                         selectedKeys={form.idArea ? new Set([form.idArea]) : new Set()}
-                        onSelectionChange={k => setForm(p => ({ ...p, idArea: String(Array.from(k)[0]) }))}
+                        onSelectionChange={(k) => setForm((p) => ({ ...p, idArea: String(Array.from(k)[0]) }))}
                         radius="sm"
                         className="flex-grow"
                       >
-                        {areas.map(a => (
+                        {areas.map((a) => (
                           <SelectItem key={String(a.id)}>{a.nombreArea}</SelectItem>
                         ))}
                       </Select>
@@ -592,11 +607,11 @@ const UsuariosPage = () => {
                       <Select
                         label="Ficha de Formación"
                         selectedKeys={form.idFicha ? new Set([form.idFicha]) : new Set()}
-                        onSelectionChange={k => setForm(p => ({ ...p, idFicha: String(Array.from(k)[0]) }))}
+                        onSelectionChange={(k) => setForm((p) => ({ ...p, idFicha: String(Array.from(k)[0]) }))}
                         radius="sm"
                         className="flex-grow"
                       >
-                        {fichas.map(f => (
+                        {fichas.map((f) => (
                           <SelectItem key={String(f.id)}>{f.nombre}</SelectItem>
                         ))}
                       </Select>
@@ -616,11 +631,11 @@ const UsuariosPage = () => {
                       <Select
                         label="Rol"
                         selectedKeys={form.idRol ? new Set([form.idRol]) : new Set()}
-                        onSelectionChange={k => setForm(p => ({ ...p, idRol: String(Array.from(k)[0]) }))}
+                        onSelectionChange={(k) => setForm((p) => ({ ...p, idRol: String(Array.from(k)[0]) }))}
                         radius="sm"
                         className="flex-grow"
                       >
-                        {roles.map(r => (
+                        {roles.map((r) => (
                           <SelectItem key={String(r.id)}>{r.nombreRol}</SelectItem>
                         ))}
                       </Select>
@@ -746,6 +761,7 @@ const UsuariosPage = () => {
             </>
           </ModalContent>
         </Modal>
+
       </div>
     </DefaultLayout>
   );

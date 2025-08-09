@@ -29,11 +29,10 @@ import {
   deleteSitio,
 } from '@/Api/SitioService';
 import { getAreas } from '@/Api/AreasService';
-import { getTiposSitio } from '@/Api/Tipo_sitios';
+import { getTiposSitio } from '@/Api/Tipo_sitios'; // O el nombre de tu API de tipos
 import DefaultLayout from '@/layouts/default';
-import { PlusIcon, MoreVertical, Search as SearchIcon } from 'lucide-react';
+import { PlusIcon, MoreVertical, Search as SearchIcon } from "lucide-react";
 import { Card, CardContent } from '@/components/ui/card';
-
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 
@@ -60,7 +59,7 @@ const INITIAL_VISIBLE_COLUMNS = [
   'actions',
 ];
 
-const SitiosPage = () => {
+export default function SitiosPage() {
   const [sitios, setSitios] = useState<any[]>([]);
   const [areas, setAreas] = useState<any[]>([]);
   const [tipos, setTipos] = useState<any[]>([]);
@@ -97,72 +96,66 @@ const SitiosPage = () => {
       setAreas(a);
       setTipos(t);
     } catch (err) {
-      console.error('Error cargando sitios', err);
-      await MySwal.fire('Error', 'No se pudieron cargar los datos de sitios, áreas o tipos.', 'error');
+      await MySwal.fire("Error", "Error cargando sitios/áreas/tipos", "error");
     }
   };
 
   const eliminar = async (id: number) => {
     const result = await MySwal.fire({
-      title: '¿Eliminar sitio?',
-      text: 'No se podrá recuperar.',
-      icon: 'warning',
+      title: "¿Eliminar sitio?",
+      text: "No se podrá recuperar.",
+      icon: "warning",
       showCancelButton: true,
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar',
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
     });
     if (!result.isConfirmed) return;
-
     try {
       await deleteSitio(id);
-      await MySwal.fire('Eliminado', `Sitio eliminado: ID ${id}`, 'success');
-      await cargarDatos();
+      await MySwal.fire("Eliminado", `Sitio eliminado: ID ${id}`, "success");
+      cargarDatos();
     } catch (error) {
-      console.error(error);
-      await MySwal.fire('Error', 'Error eliminando sitio', 'error');
+      await MySwal.fire("Error", "Error eliminando sitio", "error");
     }
   };
 
   const guardar = async () => {
     if (!nombre.trim()) {
-      await MySwal.fire('Error', 'El nombre es obligatorio', 'error');
+      await MySwal.fire("Error", "El nombre es obligatorio", "error");
       return;
     }
     if (!ubicacion.trim()) {
-      await MySwal.fire('Error', 'La ubicación es obligatoria', 'error');
+      await MySwal.fire("Error", "La ubicación es obligatoria", "error");
       return;
     }
     if (!idArea) {
-      await MySwal.fire('Error', 'Debe seleccionar un área', 'error');
+      await MySwal.fire("Error", "Debe seleccionar un área", "error");
       return;
     }
     if (!idTipo) {
-      await MySwal.fire('Error', 'Debe seleccionar un tipo de sitio', 'error');
+      await MySwal.fire("Error", "Debe seleccionar un tipo de sitio", "error");
       return;
     }
-
     const payload = {
-      nombre,
-      ubicacion,
+      nombre: nombre.trim(),
+      ubicacion: ubicacion.trim(),
       estado,
-      idArea: { id: Number(idArea) },
-      idTipoSitio: { id: Number(idTipo) },
+      id_area: idArea,
+      id_tipo_sitio: idTipo,
     };
-
     try {
       if (editId) {
         await updateSitio(editId, payload);
-        await MySwal.fire('Actualizado', 'Sitio actualizado', 'success');
+        await MySwal.fire("Actualizado", "Sitio actualizado", "success");
       } else {
         await createSitio(payload);
-        await MySwal.fire('Creado', 'Sitio creado', 'success');
+        await MySwal.fire("Creado", "Sitio creado", "success");
       }
       limpiarForm();
       onClose();
       await cargarDatos();
     } catch (error) {
-      console.error(error);
-      await MySwal.fire('Error', 'Error guardando sitio', 'error');
+      await MySwal.fire("Error", "Error guardando sitio", "error");
     }
   };
 
@@ -171,26 +164,19 @@ const SitiosPage = () => {
     setNombre(s.nombre || '');
     setUbicacion(s.ubicacion || '');
     setEstado(s.estado === 'INACTIVO' ? 'INACTIVO' : 'ACTIVO');
-    setIdArea(s.idArea?.id || '');
-    setIdTipo(s.idTipoSitio?.id || '');
+    setIdArea(s.area?.id || s.id_area || '');
+    setIdTipo(s.tipo_sitio?.id || s.id_tipo_sitio || '');
     onOpen();
   };
 
   const limpiarForm = () => {
-    setEditId(null);
-    setNombre('');
-    setUbicacion('');
-    setEstado('ACTIVO');
-    setIdArea('');
-    setIdTipo('');
+    setEditId(null); setNombre(''); setUbicacion(''); setEstado('ACTIVO'); setIdArea(''); setIdTipo('');
   };
 
   const filtered = useMemo(() => {
     if (!filterValue) return sitios;
     return sitios.filter((s) =>
-      `${s.nombre} ${s.ubicacion} ${s.idArea?.nombreArea || ''} ${
-        s.idTipoSitio?.nombre || ''
-      }`
+      `${s.nombre} ${s.ubicacion} ${s.area?.nombreArea || ''} ${s.tipo_sitio?.nombre || ''}`
         .toLowerCase()
         .includes(filterValue.toLowerCase())
     );
@@ -209,7 +195,8 @@ const SitiosPage = () => {
     items.sort((a, b) => {
       const x = a[column as keyof typeof a];
       const y = b[column as keyof typeof b];
-      return x === y ? 0 : (x > y ? 1 : -1) * (direction === 'ascending' ? 1 : -1);
+      if (x === y) return 0;
+      return (x > y ? 1 : -1) * (direction === "ascending" ? 1 : -1);
     });
     return items;
   }, [sliced, sortDescriptor]);
@@ -226,24 +213,20 @@ const SitiosPage = () => {
         return <span className="text-sm text-gray-600">{item.ubicacion}</span>;
       case 'estado':
         return (
-          <span
-            className={`text-sm font-medium ${
-              item.estado === 'ACTIVO' ? 'text-green-600' : 'text-red-600'
-            }`}
-          >
+          <span className={`text-sm font-medium ${item.estado === 'ACTIVO' ? 'text-green-600' : 'text-red-600'}`}>
             {item.estado}
           </span>
         );
       case 'area':
         return (
           <span className="text-sm text-gray-600">
-            {item.idArea?.nombreArea || '—'}
+            {item.area?.nombreArea || '—'}
           </span>
         );
       case 'tipo':
         return (
           <span className="text-sm text-gray-600">
-            {item.idTipoSitio?.nombre || '—'}
+            {item.tipo_sitio?.nombre || '—'}
           </span>
         );
       case 'inventarios':
@@ -256,22 +239,13 @@ const SitiosPage = () => {
         return (
           <Dropdown>
             <DropdownTrigger>
-              <Button
-                isIconOnly
-                size="sm"
-                variant="light"
-                className="rounded-full text-[#0D1324]"
-              >
+              <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
                 <MoreVertical />
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              <DropdownItem key={`editar-${item.id}`} onPress={() => abrirModalEditar(item)}>
-                Editar
-              </DropdownItem>
-              <DropdownItem key={`eliminar-${item.id}`} onPress={() => eliminar(item.id)}>
-                Eliminar
-              </DropdownItem>
+              <DropdownItem onPress={() => abrirModalEditar(item)} key={`editar-${item.id}`}>Editar</DropdownItem>
+              <DropdownItem onPress={() => eliminar(item.id)} key={`eliminar-${item.id}`}>Eliminar</DropdownItem>
             </DropdownMenu>
           </Dropdown>
         );
@@ -303,6 +277,10 @@ const SitiosPage = () => {
           onClear={() => setFilterValue('')}
         />
         <div className="flex gap-3">
+          <Button className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
+            endContent={<PlusIcon />} onPress={() => { limpiarForm(); onOpen(); }}>
+            Nuevo Sitio
+          </Button>
           <Dropdown>
             <DropdownTrigger>
               <Button variant="flat">Columnas</Button>
@@ -323,16 +301,6 @@ const SitiosPage = () => {
                 ))}
             </DropdownMenu>
           </Dropdown>
-          <Button
-            className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
-            endContent={<PlusIcon />}
-            onPress={() => {
-              limpiarForm();
-              onOpen();
-            }}
-          >
-            Nuevo Sitio
-          </Button>
         </div>
       </div>
       <div className="flex items-center justify-between">
@@ -343,14 +311,12 @@ const SitiosPage = () => {
             className="bg-transparent outline-none text-default-600 ml-1"
             value={rowsPerPage}
             onChange={(e) => {
-              setRowsPerPage(parseInt(e.target.value));
+              setRowsPerPage(Number(e.target.value));
               setPage(1);
             }}
           >
             {[5, 10, 15].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
+              <option key={n} value={n}>{n}</option>
             ))}
           </select>
         </label>
@@ -360,11 +326,11 @@ const SitiosPage = () => {
 
   const bottomContent = (
     <div className="py-2 px-2 flex justify-center items-center gap-2">
-      <Button isDisabled={page === 1} size="sm" variant="flat" onPress={() => setPage(page - 1)}>
+      <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
         Anterior
       </Button>
       <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
-      <Button isDisabled={page === pages} size="sm" variant="flat" onPress={() => setPage(page + 1)}>
+      <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>
         Siguiente
       </Button>
     </div>
@@ -375,7 +341,9 @@ const SitiosPage = () => {
       <div className="p-6 space-y-6">
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">🏷️ Gestión de Sitios</h1>
-          <p className="text-sm text-gray-600">Consulta y administra bodegas, ambientes y otros sitios.</p>
+          <p className="text-sm text-gray-600">
+            Consulta y administra bodegas, ambientes y otros sitios.
+          </p>
         </header>
 
         <div className="hidden md:block rounded-xl shadow-sm bg-white overflow-x-auto">
@@ -393,21 +361,21 @@ const SitiosPage = () => {
           >
             <TableHeader columns={columns.filter((c) => visibleColumns.has(c.uid))}>
               {(col) => (
-                <TableColumn key={col.uid} align={col.uid === 'actions' ? 'center' : 'start'} width={col.uid === 'nombre' ? 260 : undefined}>
-                  {col.name}
-                </TableColumn>
+                <TableColumn key={col.uid} align={col.uid === 'actions' ? 'center' : 'start'}
+                  width={col.uid === 'nombre' ? 260 : undefined}>{col.name}</TableColumn>
               )}
             </TableHeader>
             <TableBody items={sorted} emptyContent="No se encontraron sitios">
               {(item) => (
                 <TableRow key={item.id}>
-                  {(col) => <TableCell>{renderCell(item, String(col))}</TableCell>}
+                  {(col) => <TableCell>{renderCell(item, col as string)}</TableCell>}
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </div>
 
+        {/* Responsive cards */}
         <div className="grid gap-4 md:hidden">
           {sorted.length === 0 ? (
             <p className="text-center text-gray-500">No se encontraron sitios</p>
@@ -430,14 +398,9 @@ const SitiosPage = () => {
                     </Dropdown>
                   </div>
                   <p className="text-sm text-gray-600"><span className="font-medium">Ubicación:</span> {s.ubicacion}</p>
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">Estado:</span>{' '}
-                    <span className={s.estado === 'INACTIVO' ? 'text-red-600' : 'text-green-600'}>
-                      {s.estado}
-                    </span>
-                  </p>
-                  <p className="text-sm text-gray-600"><span className="font-medium">Área:</span> {s.idArea?.nombreArea || '—'}</p>
-                  <p className="text-sm text-gray-600"><span className="font-medium">Tipo:</span> {s.idTipoSitio?.nombre || '—'}</p>
+                  <p className="text-sm text-gray-600"><span className="font-medium">Estado:</span> <span className={s.estado === "INACTIVO" ? "text-red-600" : "text-green-600"}>{s.estado}</span></p>
+                  <p className="text-sm text-gray-600"><span className="font-medium">Área:</span> {s.area?.nombreArea || '—'}</p>
+                  <p className="text-sm text-gray-600"><span className="font-medium">Tipo:</span> {s.tipo_sitio?.nombre || '—'}</p>
                   <p className="text-sm text-gray-600"><span className="font-medium">Inventarios:</span> {s.inventarios?.length || 0}</p>
                   <p className="text-xs text-gray-400">ID: {s.id}</p>
                 </CardContent>
@@ -503,6 +466,4 @@ const SitiosPage = () => {
       </div>
     </DefaultLayout>
   );
-};
-
-export default SitiosPage;
+}

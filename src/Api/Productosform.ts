@@ -1,32 +1,44 @@
-import { ProductoFormValues } from '@/types/types/typesProductos';
-import axios from 'axios';
+import axios from "axios";
 
-const api = axios.create({
-  baseURL: 'http://localhost:3000',
+const API_URL = "http://127.0.0.1:8000/api/productos";
+
+const config = {
   withCredentials: true,
-});
+};
 
 export const getProductos = async () => {
-  const res = await api.get('/productos');
+  const res = await axios.get(API_URL, config);
+  // Aquí mapeamos para agregar fechaVencimiento y asegurar idCategoria como objeto
+  return res.data.map((item: any) => ({
+    ...item,
+    fechaVencimiento: item.fecha_vencimiento, // mapeo fecha
+    idCategoria: item.idCategoria || null, // espera que backend incluya relación
+  }));
+};
+
+export const createProducto = async (data: any) => {
+  const payload = {
+    nombre: data.nombre,
+    descripcion: data.descripcion || null,
+    fecha_vencimiento: data.fechaVencimiento || null,
+    id_categoria: data.idCategoriaId,
+  };
+  const res = await axios.post(API_URL, payload, config);
   return res.data;
 };
 
-export const createProducto = async (data: ProductoFormValues) => {
-  const res = await api.post('/productos', {
-    ...data,
-    idCategoria: { id: data.idCategoriaId },
-  });
-  return res.data;
-};
-
-export const updateProducto = async (id: number, data: ProductoFormValues) => {
-  const res = await api.put(`/productos/${id}`, {
-    ...data,
-    idCategoria: { id: data.idCategoriaId },
-  });
+export const updateProducto = async (id: number, data: any) => {
+  const payload = {
+    nombre: data.nombre,
+    descripcion: data.descripcion || null,
+    fecha_vencimiento: data.fechaVencimiento || null,
+    id_categoria: data.idCategoriaId,
+  };
+  const res = await axios.put(`${API_URL}/${id}`, payload, config);
   return res.data;
 };
 
 export const deleteProducto = async (id: number) => {
-  await api.delete(`/productos/${id}`);
+  const res = await axios.delete(`${API_URL}/${id}`, config);
+  return res.data;
 };

@@ -22,15 +22,19 @@ import {
   useDisclosure,
   type SortDescriptor,
 } from '@heroui/react';
+
 import {
   getFichasFormacion,
   createFichaFormacion,
   updateFichaFormacion,
   deleteFichaFormacion,
 } from '@/Api/fichasFormacion';
+
 import { getTitulados } from '@/Api/TituladosService';
 import { getUsuarios } from '@/Api/Usuariosform';
+
 import DefaultLayout from '@/layouts/default';
+
 import { PlusIcon, MoreVertical, Search as SearchIcon } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -48,6 +52,7 @@ const columns = [
   { name: '# Entregas', uid: 'entregas', sortable: false },
   { name: 'Acciones', uid: 'actions' },
 ];
+
 const INITIAL_VISIBLE_COLUMNS = [
   'id',
   'nombre',
@@ -58,7 +63,7 @@ const INITIAL_VISIBLE_COLUMNS = [
   'actions',
 ];
 
-const FichasFormacionPage = () => {
+export default function FichasFormacionPage() {
   const [fichas, setFichas] = useState<any[]>([]);
   const [titulados, setTitulados] = useState<any[]>([]);
   const [usuarios, setUsuarios] = useState<any[]>([]);
@@ -84,12 +89,16 @@ const FichasFormacionPage = () => {
 
   const cargarDatos = async () => {
     try {
-      const [fs, ts, us] = await Promise.all([getFichasFormacion(), getTitulados(), getUsuarios()]);
-      setFichas(fs);
-      setTitulados(ts);
-      setUsuarios(us);
-    } catch (err) {
-      console.error('Error cargando fichas', err);
+      const [fichasData, tituladosData, usuariosData] = await Promise.all([
+        getFichasFormacion(),
+        getTitulados(),
+        getUsuarios(),
+      ]);
+      setFichas(fichasData);
+      setTitulados(tituladosData);
+      setUsuarios(usuariosData);
+    } catch (error) {
+      console.error('Error cargando fichas:', error);
       await MySwal.fire('Error', 'No se pudo cargar la información', 'error');
     }
   };
@@ -127,13 +136,13 @@ const FichasFormacionPage = () => {
     }
 
     const payload = {
-      nombre,
-      idTitulado: titulados.find(t => t.id === Number(idTitulado)) || null,
-      idUsuarioResponsable: usuarios.find(u => u.id === Number(idResponsable)) || null,
+      nombre: nombre.trim(),
+      id_titulado: Number(idTitulado),
+      id_usuario_responsable: idResponsable ? Number(idResponsable) : null,
     };
 
     try {
-      if (editId) {
+      if (editId !== null) {
         await updateFichaFormacion(editId, payload);
         await MySwal.fire('Actualizado', 'Ficha actualizada correctamente', 'success');
       } else {
@@ -152,8 +161,10 @@ const FichasFormacionPage = () => {
   const abrirModalEditar = (ficha: any) => {
     setEditId(ficha.id);
     setNombre(ficha.nombre);
-    setIdTitulado(ficha.idTitulado?.id?.toString() || '');
-    setIdResponsable(ficha.idUsuarioResponsable?.id?.toString() || '');
+    setIdTitulado(ficha.id_titulado?.toString() || ficha.titulado?.id?.toString() || '');
+    setIdResponsable(
+      ficha.id_usuario_responsable?.toString() || ficha.usuario_responsable?.id?.toString() || ''
+    );
     onOpen();
   };
 
@@ -167,8 +178,14 @@ const FichasFormacionPage = () => {
   const filtered = useMemo(() => {
     if (!filterValue) return fichas;
     const fv = filterValue.toLowerCase();
-    return fichas.filter(f =>
-      (`${f.nombre} ${f.idTitulado?.nombre || ''} ${f.idUsuarioResponsable?.nombre || ''}`).toLowerCase().includes(fv)
+    return fichas.filter((f) =>
+      `${f.nombre} ${f.titulado?.nombre || ''} ${
+        f.usuario_responsable
+          ? `${f.usuario_responsable.nombre} ${f.usuario_responsable.apellido ?? ''}`
+          : ''
+      }`
+        .toLowerCase()
+        .includes(fv)
     );
   }, [fichas, filterValue]);
 
@@ -180,9 +197,8 @@ const FichasFormacionPage = () => {
   }, [filtered, page, rowsPerPage]);
 
   const sorted = useMemo(() => {
-    const items = [...sliced];
-    const { column, direction } = sortDescriptor;
-    return items.sort((a, b) => {
+    return [...sliced].sort((a, b) => {
+      const { column, direction } = sortDescriptor;
       const x = a[column as keyof typeof a];
       const y = b[column as keyof typeof b];
       if (x === y) return 0;
@@ -195,11 +211,11 @@ const FichasFormacionPage = () => {
       case 'nombre':
         return <span className="font-medium text-gray-800 break-words max-w-[16rem]">{item.nombre}</span>;
       case 'titulado':
-        return <span className="text-sm text-gray-600">{item.idTitulado?.nombre || '—'}</span>;
+        return <span className="text-sm text-gray-600">{item.titulado?.nombre ?? '—'}</span>;
       case 'responsable':
         return (
           <span className="text-sm text-gray-600">
-            {item.idUsuarioResponsable ? `${item.idUsuarioResponsable.nombre} ${item.idUsuarioResponsable.apellido ?? ''}` : '—'}
+            {item.usuario_responsable ? `${item.usuario_responsable.nombre} ${item.usuario_responsable.apellido ?? ''}` : '—'}
           </span>
         );
       case 'usuarios':
@@ -230,7 +246,7 @@ const FichasFormacionPage = () => {
   };
 
   const toggleColumn = (uid: string) => {
-    setVisibleColumns(prev => {
+    setVisibleColumns((prev) => {
       const copy = new Set(prev);
       copy.has(uid) ? copy.delete(uid) : copy.add(uid);
       return copy;
@@ -276,17 +292,24 @@ const FichasFormacionPage = () => {
                         <Button variant="flat">Columnas</Button>
                       </DropdownTrigger>
                       <DropdownMenu aria-label="Seleccionar columnas">
-                        {columns.filter(c => c.uid !== 'actions').map(col => (
-                          <DropdownItem key={col.uid} onPress={() => toggleColumn(col.uid)}>
-                            <Checkbox isSelected={visibleColumns.has(col.uid)} readOnly />
-                            {col.name}
-                          </DropdownItem>
-                        ))}
+                        {columns
+                          .filter((c) => c.uid !== 'actions')
+                          .map((col) => (
+                            <DropdownItem key={col.uid} onPress={() => toggleColumn(col.uid)}>
+                              <Checkbox isSelected={visibleColumns.has(col.uid)} readOnly />
+                              {col.name}
+                            </DropdownItem>
+                          ))}
                       </DropdownMenu>
                     </Dropdown>
-                    <Button className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
+                    <Button
+                      className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
                       endContent={<PlusIcon />}
-                      onPress={onOpen}>
+                      onPress={() => {
+                        limpiarForm();
+                        onOpen();
+                      }}
+                    >
                       Nueva Ficha
                     </Button>
                   </div>
@@ -298,11 +321,16 @@ const FichasFormacionPage = () => {
                     <select
                       className="bg-transparent outline-none text-default-600 ml-1"
                       value={rowsPerPage}
-                      onChange={e => {
+                      onChange={(e) => {
                         setRowsPerPage(parseInt(e.target.value));
                         setPage(1);
-                      }}>
-                      {[5, 10, 15].map(n => <option key={n} value={n}>{n}</option>)}
+                      }}
+                    >
+                      {[5, 10, 15].map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
                     </select>
                   </label>
                 </div>
@@ -310,24 +338,27 @@ const FichasFormacionPage = () => {
             }
             bottomContent={
               <div className="py-2 px-2 flex justify-center items-center gap-2">
-                <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>Anterior</Button>
+                <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
+                  Anterior
+                </Button>
                 <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
-                <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>Siguiente</Button>
+                <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>
+                  Siguiente
+                </Button>
               </div>
             }
           >
-            <TableHeader columns={columns.filter(c => visibleColumns.has(c.uid))}>
-              {col => (
-                <TableColumn key={col.uid} align={col.uid === 'actions' ? 'center' : 'start'}
-                  width={col.uid === 'nombre' ? 300 : undefined}>
+            <TableHeader columns={columns.filter((c) => visibleColumns.has(c.uid))}>
+              {(col) => (
+                <TableColumn key={col.uid} align={col.uid === 'actions' ? 'center' : 'start'} width={col.uid === 'nombre' ? 300 : undefined}>
                   {col.name}
                 </TableColumn>
               )}
             </TableHeader>
             <TableBody items={sorted} emptyContent="No se encontraron fichas">
-              {item => (
+              {(item) => (
                 <TableRow key={item.id}>
-                  {col => <TableCell>{renderCell(item, col as string)}</TableCell>}
+                  {(col) => <TableCell>{renderCell(item, col as string)}</TableCell>}
                 </TableRow>
               )}
             </TableBody>
@@ -336,10 +367,8 @@ const FichasFormacionPage = () => {
 
         {/* Mobile cards */}
         <div className="grid gap-4 md:hidden">
-          {sorted.length === 0 && (
-            <p className="text-center text-gray-500">No se encontraron fichas</p>
-          )}
-          {sorted.map(ficha => (
+          {sorted.length === 0 && <p className="text-center text-gray-500">No se encontraron fichas</p>}
+          {sorted.map((ficha) => (
             <Card key={ficha.id} className="shadow-sm">
               <CardContent className="space-y-2 p-4">
                 <div className="flex justify-between items-start">
@@ -351,14 +380,18 @@ const FichasFormacionPage = () => {
                       </Button>
                     </DropdownTrigger>
                     <DropdownMenu>
-                      <DropdownItem onPress={() => abrirModalEditar(ficha)} key="editar">Editar</DropdownItem>
-                      <DropdownItem onPress={() => eliminar(ficha.id)} key="eliminar">Eliminar</DropdownItem>
+                      <DropdownItem onPress={() => abrirModalEditar(ficha)} key="editar">
+                        Editar
+                      </DropdownItem>
+                      <DropdownItem onPress={() => eliminar(ficha.id)} key="eliminar">
+                        Eliminar
+                      </DropdownItem>
                     </DropdownMenu>
                   </Dropdown>
                 </div>
-                <p className="text-sm text-gray-600">Titulado: {ficha.idTitulado?.nombre || '—'}</p>
+                <p className="text-sm text-gray-600">Titulado: {ficha.titulado?.nombre || '—'}</p>
                 <p className="text-sm text-gray-600">
-                  Responsable: {ficha.idUsuarioResponsable ? `${ficha.idUsuarioResponsable.nombre} ${ficha.idUsuarioResponsable.apellido ?? ''}` : '—'}
+                  Responsable: {ficha.usuario_responsable ? `${ficha.usuario_responsable.nombre} ${ficha.usuario_responsable.apellido ?? ''}` : '—'}
                 </p>
                 <p className="text-sm text-gray-600">Usuarios: {ficha.usuarios?.length || 0}</p>
                 <p className="text-sm text-gray-600">Entregas: {ficha.entregaMaterials?.length || 0}</p>
@@ -369,27 +402,29 @@ const FichasFormacionPage = () => {
         </div>
 
         {/* Modal */}
-        <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" className="backdrop-blur-sm bg-black/30">
-          <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl">
-            {onCloseLocal => (
+        <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" className="backdrop-blur-sm bg-black/30" isDismissable={false}>
+          <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl max-w-md w-full p-6">
+            {(onCloseLocal) => (
               <>
                 <ModalHeader>{editId ? 'Editar Ficha' : 'Nueva Ficha'}</ModalHeader>
                 <ModalBody className="space-y-4">
                   <Input label="Nombre" placeholder="Ej: Ficha 2567890 - ADSI" value={nombre} onValueChange={setNombre} radius="sm" />
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Titulado</label>
-                    <select value={idTitulado} onChange={e => setIdTitulado(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <select value={idTitulado} onChange={(e) => setIdTitulado(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="">Seleccione un titulado</option>
-                      {titulados.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                      {titulados.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.nombre}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Responsable</label>
-                    <select value={idResponsable} onChange={e => setIdResponsable(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <select value={idResponsable} onChange={(e) => setIdResponsable(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="">Seleccione un responsable</option>
-                      {usuarios.map(u => (
+                      {usuarios.map((u) => (
                         <option key={u.id} value={u.id}>
                           {`${u.nombre} ${u.apellido ?? ''}`}
                         </option>
@@ -398,8 +433,12 @@ const FichasFormacionPage = () => {
                   </div>
                 </ModalBody>
                 <ModalFooter>
-                  <Button variant="light" onPress={onCloseLocal}>Cancelar</Button>
-                  <Button variant="flat" onPress={guardar}>{editId ? 'Actualizar' : 'Crear'}</Button>
+                  <Button variant="light" onPress={onCloseLocal}>
+                    Cancelar
+                  </Button>
+                  <Button variant="flat" onPress={guardar}>
+                    {editId ? 'Actualizar' : 'Crear'}
+                  </Button>
                 </ModalFooter>
               </>
             )}
@@ -408,6 +447,4 @@ const FichasFormacionPage = () => {
       </div>
     </DefaultLayout>
   );
-};
-
-export default FichasFormacionPage;
+}

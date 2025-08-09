@@ -1,36 +1,30 @@
-import axios from 'axios';
-import {
-  CentroFormacion,
-  CentroFormacionFormValues,
-} from '@/types/types/typesCentroFormacion';
+// src/Api/centrosformacionTable.ts
+import axios from "axios";
 
-const API_URL = 'http://localhost:3000/centro-formacion';
+const API_URL = "http://127.0.0.1:8000/api/centros-formacion";
 
-// Config global para permitir envío de cookies (autenticación)
-const config = {
-  withCredentials: true,
+export const getCentrosFormacion = async () => {
+  const response = await axios.get(API_URL);
+  return response.data;
 };
 
-export const getCentrosFormacion = async (): Promise<CentroFormacion[]> => {
-  const res = await axios.get(API_URL, config);
-  return res.data;
+export const createCentroFormacion = async (data: any) => {
+  const response = await axios.post(API_URL, {
+    ...data,
+    id_municipio: data.idMunicipio.id, // <-- importante
+  });
+  return response.data;
 };
 
-export const createCentroFormacion = async (
-  data: CentroFormacionFormValues
-): Promise<CentroFormacion> => {
-  const res = await axios.post(API_URL, data, config);
-  return res.data;
+export const updateCentroFormacion = async (id: number, data: any) => {
+  const response = await axios.put(`${API_URL}/${id}`, {
+    ...data,
+    id_municipio: data.idMunicipio.id, // <-- importante
+  });
+  return response.data;
 };
 
-export const updateCentroFormacion = async (
-  id: number,
-  data: CentroFormacionFormValues
-): Promise<CentroFormacion> => {
-  const res = await axios.put(`${API_URL}/${id}`, data, config);
-  return res.data;
-};
-
-export const deleteCentroFormacion = async (id: number): Promise<void> => {
-  await axios.delete(`${API_URL}/${id}`, config);
+export const deleteCentroFormacion = async (id: number) => {
+  const response = await axios.delete(`${API_URL}/${id}`);
+  return response.data;
 };

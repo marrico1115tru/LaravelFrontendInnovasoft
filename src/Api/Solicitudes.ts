@@ -1,33 +1,48 @@
-import axios from "axios";
-import { Solicitud } from "@/types/types/Solicitud";
+// @/Api/Solicitudes.ts
 
-const API_URL = "http://localhost:3000/solicitudes";
+import type { Solicitud, SolicitudPayload } from '@/types/types/Solicitud';
 
-// Config global para incluir cookies/sesión en las peticiones
-const config = {
-  withCredentials: true,
-};
+const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
-export const getSolicitudes = async (): Promise<Solicitud[]> => {
-  const res = await axios.get(API_URL, config);
-  return res.data;
-};
+/** Obtener lista de solicitudes */
+export async function getSolicitudes(): Promise<Solicitud[]> {
+  const res = await fetch(`${API_BASE_URL}/solicitudes`);
+  if (!res.ok) throw new Error('Error al obtener solicitudes');
+  return res.json();
+}
 
-export const createSolicitud = async (
-  data: Partial<Solicitud>
-): Promise<Solicitud> => {
-  const res = await axios.post(API_URL, data, config);
-  return res.data;
-};
+/** Crear solicitud */
+export async function createSolicitud(payload: SolicitudPayload): Promise<Solicitud> {
+  const res = await fetch(`${API_BASE_URL}/solicitudes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload), // El payload debe usar { fecha_solicitud, estado_solicitud, id_usuario_solicitante }
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.message || 'Error al crear solicitud');
+  }
+  return res.json();
+}
 
-export const updateSolicitud = async (
-  id: number,
-  data: Partial<Solicitud>
-): Promise<Solicitud> => {
-  const res = await axios.put(`${API_URL}/${id}`, data, config);
-  return res.data;
-};
+/** Actualizar solicitud */
+export async function updateSolicitud(id: number, payload: SolicitudPayload): Promise<Solicitud> {
+  const res = await fetch(`${API_BASE_URL}/solicitudes/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.message || 'Error al actualizar solicitud');
+  }
+  return res.json();
+}
 
-export const deleteSolicitud = async (id: number): Promise<void> => {
-  await axios.delete(`${API_URL}/${id}`, config);
-};
+/** Eliminar solicitud */
+export async function deleteSolicitud(id: number): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/solicitudes/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Error al eliminar solicitud');
+}

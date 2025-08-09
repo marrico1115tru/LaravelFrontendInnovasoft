@@ -62,7 +62,7 @@ const RolesPage = () => {
 
   const { isOpen, onOpenChange, onOpen, onClose } = useDisclosure();
 
-  // Cargar roles
+  // Cargar roles desde API
   useEffect(() => {
     cargarRoles();
   }, []);
@@ -77,6 +77,7 @@ const RolesPage = () => {
     }
   };
 
+  // Eliminar rol con confirmación
   const eliminar = async (id: number) => {
     const result = await MySwal.fire({
       title: '¿Eliminar rol?',
@@ -98,6 +99,7 @@ const RolesPage = () => {
     }
   };
 
+  // Crear o actualizar rol
   const guardar = async () => {
     if (!nombreRol.trim()) {
       await MySwal.fire('Error', 'El nombre del rol es obligatorio', 'error');
@@ -105,7 +107,7 @@ const RolesPage = () => {
     }
     const payload = { nombreRol };
     try {
-      if (editId) {
+      if (editId !== null) {
         await updateRol(editId, payload);
         await MySwal.fire('Actualizado', 'Rol actualizado', 'success');
       } else {
@@ -121,21 +123,26 @@ const RolesPage = () => {
     }
   };
 
+  // Abrir modal para editar rol
   const abrirModalEditar = (r: any) => {
     setEditId(r.id);
-    setNombreRol(r.nombreRol);
+    setNombreRol(r.nombre_rol || r.nombreRol || '');
     onOpen();
   };
 
+  // Limpiar formulario
   const limpiarForm = () => {
     setEditId(null);
     setNombreRol('');
   };
 
+  // Filtrar roles según texto ingresado
   const filtered = useMemo(() => {
     if (!filterValue) return roles;
     return roles.filter((r) =>
-      `${r.nombreRol}`.toLowerCase().includes(filterValue.toLowerCase())
+      `${r.nombre_rol || r.nombreRol}`
+        .toLowerCase()
+        .includes(filterValue.toLowerCase())
     );
   }, [roles, filterValue]);
 
@@ -157,12 +164,13 @@ const RolesPage = () => {
     return items;
   }, [sliced, sortDescriptor]);
 
+  // Renderizado de celdas
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
       case 'rol':
         return (
           <span className="font-medium text-gray-800 break-words max-w-[18rem]">
-            {item.nombreRol}
+            {item.nombre_rol || item.nombreRol}
           </span>
         );
       case 'usuarios':
@@ -173,7 +181,13 @@ const RolesPage = () => {
         return (
           <Dropdown>
             <DropdownTrigger>
-              <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
+              <Button
+                isIconOnly
+                size="sm"
+                variant="light"
+                className="rounded-full text-[#0D1324]"
+                aria-label="Opciones"
+              >
                 <MoreVertical />
               </Button>
             </DropdownTrigger>
@@ -192,10 +206,12 @@ const RolesPage = () => {
     }
   };
 
+  // Mostrar u ocultar columnas
   const toggleColumn = (key: string) => {
     setVisibleColumns((prev) => {
       const copy = new Set(prev);
-      copy.has(key) ? copy.delete(key) : copy.add(key);
+      if (copy.has(key)) copy.delete(key);
+      else copy.add(key);
       return copy;
     });
   };
@@ -212,11 +228,14 @@ const RolesPage = () => {
           value={filterValue}
           onValueChange={setFilterValue}
           onClear={() => setFilterValue('')}
+          aria-label="Buscar roles"
         />
         <div className="flex gap-3">
           <Dropdown>
             <DropdownTrigger>
-              <Button variant="flat">Columnas</Button>
+              <Button variant="flat" aria-haspopup="menu">
+                Columnas
+              </Button>
             </DropdownTrigger>
             <DropdownMenu aria-label="Seleccionar columnas">
               {columns
@@ -241,6 +260,7 @@ const RolesPage = () => {
               limpiarForm();
               onOpen();
             }}
+            aria-label="Nuevo rol"
           >
             Nuevo Rol
           </Button>
@@ -257,6 +277,7 @@ const RolesPage = () => {
               setRowsPerPage(parseInt(e.target.value));
               setPage(1);
             }}
+            aria-label="Filas por página"
           >
             {[5, 10, 15].map((n) => (
               <option key={n} value={n}>
@@ -271,11 +292,23 @@ const RolesPage = () => {
 
   const bottomContent = (
     <div className="py-2 px-2 flex justify-center items-center gap-2">
-      <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
+      <Button
+        size="sm"
+        variant="flat"
+        isDisabled={page === 1}
+        onPress={() => setPage(page - 1)}
+        aria-label="Página anterior"
+      >
         Anterior
       </Button>
       <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
-      <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>
+      <Button
+        size="sm"
+        variant="flat"
+        isDisabled={page === pages}
+        onPress={() => setPage(page + 1)}
+        aria-label="Página siguiente"
+      >
         Siguiente
       </Button>
     </div>
@@ -285,7 +318,9 @@ const RolesPage = () => {
     <DefaultLayout>
       <div className="p-6 space-y-6">
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">🛡️ Gestión de Roles</h1>
+          <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">
+            🛡️ Gestión de Roles
+          </h1>
           <p className="text-sm text-gray-600">Consulta y administra los roles y sus permisos.</p>
         </header>
 
@@ -304,7 +339,11 @@ const RolesPage = () => {
           >
             <TableHeader columns={columns.filter((c) => visibleColumns.has(c.uid))}>
               {(col) => (
-                <TableColumn key={col.uid} align={col.uid === 'actions' ? 'center' : 'start'} width={col.uid === 'rol' ? 300 : undefined}>
+                <TableColumn
+                  key={col.uid}
+                  align={col.uid === 'actions' ? 'center' : 'start'}
+                  width={col.uid === 'rol' ? 300 : undefined}
+                >
                   {col.name}
                 </TableColumn>
               )}
@@ -327,10 +366,18 @@ const RolesPage = () => {
               <Card key={r.id} className="shadow-sm">
                 <CardContent className="space-y-2 p-4">
                   <div className="flex justify-between items-start">
-                    <h3 className="font-semibold text-lg break-words max-w-[14rem]">{r.nombreRol}</h3>
+                    <h3 className="font-semibold text-lg break-words max-w-[14rem]">
+                      {r.nombre_rol || r.nombreRol}
+                    </h3>
                     <Dropdown>
                       <DropdownTrigger>
-                        <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          className="rounded-full text-[#0D1324]"
+                          aria-label="Opciones"
+                        >
                           <MoreVertical />
                         </Button>
                       </DropdownTrigger>
@@ -344,8 +391,12 @@ const RolesPage = () => {
                       </DropdownMenu>
                     </Dropdown>
                   </div>
-                  <p className="text-sm text-gray-600"><span className="font-medium">Usuarios:</span> {r.usuarios?.length || 0}</p>
-                  <p className="text-sm text-gray-600"><span className="font-medium">Permisos:</span> {r.permisos?.length || 0}</p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Usuarios:</span> {r.usuarios?.length || 0}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Permisos:</span> {r.permisos?.length || 0}
+                  </p>
                   <p className="text-xs text-gray-400">ID: {r.id}</p>
                 </CardContent>
               </Card>
@@ -353,17 +404,35 @@ const RolesPage = () => {
           )}
         </div>
 
-        <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" className="backdrop-blur-sm bg-black/30">
-          <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl">
+        <Modal
+          isOpen={isOpen}
+          onOpenChange={onOpenChange}
+          placement="center"
+          className="backdrop-blur-sm bg-black/30"
+          isDismissable={false}
+          aria-label="Formulario nuevo/editar rol"
+        >
+          <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl max-w-md w-full p-6">
             {(onCloseLocal) => (
               <>
-                <ModalHeader>{editId ? 'Editar Rol' : 'Nuevo Rol'}</ModalHeader>
+                <ModalHeader>{editId !== null ? 'Editar Rol' : 'Nuevo Rol'}</ModalHeader>
                 <ModalBody className="space-y-4">
-                  <Input label="Nombre del rol" placeholder="Ej: Administrador" value={nombreRol} onValueChange={setNombreRol} radius="sm" />
+                  <Input
+                    label="Nombre del rol"
+                    placeholder="Ej: Administrador"
+                    value={nombreRol}
+                    onValueChange={setNombreRol}
+                    radius="sm"
+                    autoFocus
+                  />
                 </ModalBody>
-                <ModalFooter>
-                  <Button variant="light" onPress={onCloseLocal}>Cancelar</Button>
-                  <Button variant="flat" onPress={guardar}>{editId ? 'Actualizar' : 'Crear'}</Button>
+                <ModalFooter className="flex justify-end gap-3">
+                  <Button variant="light" onPress={onCloseLocal}>
+                    Cancelar
+                  </Button>
+                  <Button variant="flat" onPress={guardar}>
+                    {editId !== null ? 'Actualizar' : 'Crear'}
+                  </Button>
                 </ModalFooter>
               </>
             )}

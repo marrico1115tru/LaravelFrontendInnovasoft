@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useMemo, useState } from 'react';
 import {
   Table,
@@ -22,19 +24,26 @@ import {
   useDisclosure,
   type SortDescriptor,
 } from '@heroui/react';
+
 import {
   getSolicitudes,
   createSolicitud,
   updateSolicitud,
   deleteSolicitud,
 } from '@/Api/Solicitudes';
+
 import { getUsuarios } from '@/Api/Usuariosform';
+
 import DefaultLayout from '@/layouts/default';
+
 import { PlusIcon, MoreVertical, Search as SearchIcon } from 'lucide-react';
+
 import { Card, CardContent } from '@/components/ui/card';
 
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
+
+import type { Solicitud, SolicitudPayload, Usuario } from '@/types/types/Solicitud';
 
 const MySwal = withReactContent(Swal);
 
@@ -47,6 +56,7 @@ const columns = [
   { name: '# Entregas', uid: 'entregas', sortable: false },
   { name: 'Acciones', uid: 'actions' },
 ];
+
 const INITIAL_VISIBLE_COLUMNS = [
   'id',
   'fecha',
@@ -57,11 +67,11 @@ const INITIAL_VISIBLE_COLUMNS = [
   'actions',
 ];
 
-const SolicitudesPage = () => {
-  const [solicitudes, setSolicitudes] = useState<any[]>([]);
-  const [usuarios, setUsuarios] = useState<any[]>([]);
+export default function SolicitudesPage() {
+  const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [filterValue, setFilterValue] = useState('');
-  const [visibleColumns, setVisibleColumns] = useState(new Set(INITIAL_VISIBLE_COLUMNS));
+  const [visibleColumns, setVisibleColumns] = useState(new Set<string>(INITIAL_VISIBLE_COLUMNS));
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [page, setPage] = useState(1);
   const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
@@ -69,7 +79,8 @@ const SolicitudesPage = () => {
     direction: 'ascending',
   });
 
-  const [fechaSolicitud, setFechaSolicitud] = useState('');
+  // Form fields
+  const [fechaSolicitud, setFechaSolicitud] = useState<string>('');
   const [estado, setEstado] = useState<'PENDIENTE' | 'APROBADA' | 'RECHAZADA'>('PENDIENTE');
   const [idSolicitante, setIdSolicitante] = useState<number | ''>('');
   const [editId, setEditId] = useState<number | null>(null);
@@ -80,7 +91,7 @@ const SolicitudesPage = () => {
     cargarDatos();
   }, []);
 
-  const cargarDatos = async () => {
+  async function cargarDatos() {
     try {
       const [sols, users] = await Promise.all([getSolicitudes(), getUsuarios()]);
       setSolicitudes(sols);
@@ -89,9 +100,9 @@ const SolicitudesPage = () => {
       console.error('Error cargando solicitudes', err);
       await MySwal.fire('Error', 'Error cargando datos', 'error');
     }
-  };
+  }
 
-  const eliminar = async (id: number) => {
+  async function eliminar(id: number) {
     const result = await MySwal.fire({
       title: '¿Eliminar solicitud?',
       text: 'No se podrá recuperar.',
@@ -110,9 +121,9 @@ const SolicitudesPage = () => {
       console.error(error);
       await MySwal.fire('Error', 'Error eliminando solicitud', 'error');
     }
-  };
+  }
 
-  const guardar = async () => {
+  async function guardar() {
     if (!fechaSolicitud) {
       await MySwal.fire('Error', 'La fecha es obligatoria', 'error');
       return;
@@ -126,20 +137,10 @@ const SolicitudesPage = () => {
       return;
     }
 
-    const usuarioSeleccionado = usuarios.find(u => u.id === Number(idSolicitante));
-    if (!usuarioSeleccionado) {
-      await MySwal.fire('Error', 'El solicitante seleccionado no es válido', 'error');
-      return;
-    }
-
-    const payload = {
-      fechaSolicitud,
-      estadoSolicitud: estado,
-      idUsuarioSolicitante: {
-        id: usuarioSeleccionado.id,
-        nombre: usuarioSeleccionado.nombre,
-        apellido: usuarioSeleccionado.apellido,
-      },
+    const payload: SolicitudPayload = {
+      fecha_solicitud: fechaSolicitud,
+      estado_solicitud: estado,
+      id_usuario_solicitante: idSolicitante,
     };
 
     try {
@@ -157,29 +158,32 @@ const SolicitudesPage = () => {
       console.error(error);
       await MySwal.fire('Error', 'Error guardando solicitud', 'error');
     }
-  };
+  }
 
-  const abrirModalEditar = (sol: any) => {
+  function abrirModalEditar(sol: Solicitud) {
     setEditId(sol.id);
-    setFechaSolicitud(sol.fechaSolicitud);
-    setEstado(sol.estadoSolicitud);
-    setIdSolicitante(sol.idUsuarioSolicitante?.id || '');
+    setFechaSolicitud(sol.fecha_solicitud);
+    setEstado(sol.estado_solicitud || 'PENDIENTE');
+    setIdSolicitante(sol.id_usuario_solicitante);
     onOpen();
-  };
+  }
 
-  const limpiarForm = () => {
+  function limpiarForm() {
     setEditId(null);
     setFechaSolicitud('');
     setEstado('PENDIENTE');
     setIdSolicitante('');
-  };
+  }
 
   const filtered = useMemo(() => {
-    if (!filterValue) return solicitudes;
-    return solicitudes.filter(s =>
-      `${s.id} ${s.fechaSolicitud} ${s.estadoSolicitud} ${s.idUsuarioSolicitante?.nombre || ''} ${s.idUsuarioSolicitante?.apellido || ''}`.toLowerCase().includes(filterValue.toLowerCase())
-    );
-  }, [solicitudes, filterValue]);
+    const f = filterValue.toLowerCase();
+    return solicitudes.filter(s => {
+      const usuario = usuarios.find(u => u.id === s.id_usuario_solicitante);
+      return (
+        `${s.id} ${s.fecha_solicitud} ${s.estado_solicitud} ${usuario?.nombre || ''} ${usuario?.apellido || ''}`.toLowerCase().includes(f)
+      );
+    });
+  }, [solicitudes, filterValue, usuarios]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
 
@@ -192,37 +196,42 @@ const SolicitudesPage = () => {
     const items = [...sliced];
     const { column, direction } = sortDescriptor;
     items.sort((a, b) => {
-      const x = a[column === 'fecha' ? 'fechaSolicitud' : column];
-      const y = b[column === 'fecha' ? 'fechaSolicitud' : column];
-      return x === y ? 0 : (x > y ? 1 : -1) * (direction === 'ascending' ? 1 : -1);
+      const getVal = (obj: any) => obj[column === 'fecha' ? 'fecha_solicitud' : column];
+      const x = getVal(a);
+      const y = getVal(b);
+      if (x === y) return 0;
+      return (x > y ? 1 : -1) * (direction === 'ascending' ? 1 : -1);
     });
     return items;
   }, [sliced, sortDescriptor]);
 
-  const renderCell = (item: any, columnKey: string) => {
+  const renderCell = (item: Solicitud, columnKey: string) => {
     switch (columnKey) {
       case 'fecha':
-        return <span className="text-sm text-gray-600">{item.fechaSolicitud}</span>;
+        return <span className="text-sm text-gray-600">{item.fecha_solicitud}</span>;
       case 'estado':
         return (
           <span
             className={`text-sm font-medium ${
-              item.estadoSolicitud === 'RECHAZADA'
+              item.estado_solicitud === 'RECHAZADA'
                 ? 'text-red-600'
-                : item.estadoSolicitud === 'APROBADA'
+                : item.estado_solicitud === 'APROBADA'
                 ? 'text-green-600'
                 : 'text-yellow-600'
             }`}
           >
-            {item.estadoSolicitud}
+            {item.estado_solicitud}
           </span>
         );
-      case 'solicitante':
+      case 'solicitante': {
+        const usuario = usuarios.find(u => u.id === item.id_usuario_solicitante);
+        if (!usuario) return <span className="text-sm text-gray-400">Sin solicitante</span>;
         return (
           <span className="text-sm text-gray-800">
-            {item.idUsuarioSolicitante ? `${item.idUsuarioSolicitante.nombre} ${item.idUsuarioSolicitante.apellido || ''}` : '—'}
+            {usuario.nombre} {usuario.apellido || ''}
           </span>
         );
+      }
       case 'detalles':
         return <span className="text-sm text-gray-600">{item.detalleSolicituds?.length || 0}</span>;
       case 'entregas':
@@ -246,7 +255,7 @@ const SolicitudesPage = () => {
           </Dropdown>
         );
       default:
-        return item[columnKey as keyof typeof item];
+        return (item as any)[columnKey];
     }
   };
 
@@ -259,7 +268,6 @@ const SolicitudesPage = () => {
     });
   };
 
-  // Aquí modifico el orden solicitado: Primero Columnas, luego Botón Nueva Solicitud
   const topContent = (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
@@ -400,17 +408,21 @@ const SolicitudesPage = () => {
                       </DropdownMenu>
                     </Dropdown>
                   </div>
-                  <p className="text-sm text-gray-600"><span className="font-medium">Fecha:</span> {s.fechaSolicitud}</p>
+                  <p className="text-sm text-gray-600"><span className="font-medium">Fecha:</span> {s.fecha_solicitud}</p>
                   <p className="text-sm text-gray-600"><span className="font-medium">Estado:</span>{' '}
                     <span className={
-                      s.estadoSolicitud === 'RECHAZADA' ? 'text-red-600' :
-                      s.estadoSolicitud === 'APROBADA' ? 'text-green-600' :
+                      s.estado_solicitud === 'RECHAZADA' ? 'text-red-600' :
+                      s.estado_solicitud === 'APROBADA' ? 'text-green-600' :
                       'text-yellow-600'}>
-                      {s.estadoSolicitud}
+                      {s.estado_solicitud}
                     </span>
                   </p>
                   <p className="text-sm text-gray-600"><span className="font-medium">Solicitante:</span>{' '}
-                    {s.idUsuarioSolicitante ? `${s.idUsuarioSolicitante.nombre} ${s.idUsuarioSolicitante.apellido || ''}` : '—'}</p>
+                    {(() => {
+                      const usuario = usuarios.find(u => u.id === s.id_usuario_solicitante);
+                      return usuario ? `${usuario.nombre} ${usuario.apellido || ''}` : '—';
+                    })()}
+                  </p>
                   <p className="text-sm text-gray-600"><span className="font-medium">Detalles:</span> {s.detalleSolicituds?.length || 0}</p>
                   <p className="text-sm text-gray-600"><span className="font-medium">Entregas:</span> {s.entregaMaterials?.length || 0}</p>
                   <p className="text-xs text-gray-400">ID: {s.id}</p>
@@ -470,6 +482,4 @@ const SolicitudesPage = () => {
       </div>
     </DefaultLayout>
   );
-};
-
-export default SolicitudesPage;
+}
