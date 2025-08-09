@@ -14,7 +14,7 @@ export const getUsuarios = async () => {
 
 // Crear usuario
 export const createUsuario = async (data: any) => {
-  // Enviar datos planos y referencias por id
+  // Use snake_case keys para enviar al backend
   const payload = {
     nombre: data.nombre,
     apellido: data.apellido,
@@ -22,8 +22,9 @@ export const createUsuario = async (data: any) => {
     email: data.email,
     telefono: data.telefono,
     password: data.password,
-    id_area: data.id_area, // pasar id_area plano
-    id_rol: data.id_rol,   // pasar id_rol plano
+    id_area: data.id_area, // ojo con el nombre aquí - debe ser snake_case
+    id_rol: data.id_rol,
+    id_ficha: data.id_ficha, // agregar ficha si aplica y backend soporta
   };
   const res = await axios.post(API_URL, payload, config);
   return res.data;
@@ -39,8 +40,8 @@ export const updateUsuario = async (id: number, data: any) => {
     telefono: data.telefono,
     id_area: data.id_area,
     id_rol: data.id_rol,
+    id_ficha: data.id_ficha,
   };
-  // Solo envía password si existe (opcional en update)
   if (data.password) {
     payload.password = data.password;
   }
