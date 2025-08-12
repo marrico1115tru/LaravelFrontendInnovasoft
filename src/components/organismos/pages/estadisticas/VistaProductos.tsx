@@ -2,24 +2,15 @@
 
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { BarChart } from './Graficasbases/GraficasBaseProductos'; 
+import { BarChart } from './Graficasbases/GraficasBaseProductos';
 import { Card } from '@/components/ui/card';
 import DefaultLayout from '@/layouts/default';
 
-interface ProductoSolicitado {
-  idUsuario: number | null;
-  nombreCompleto: string;
-  totalSolicitado: string | null;
-}
-
-interface ProductoMovimiento {
-  nombre: string;
-  totalMovimiento: string;
-}
-
 const VistaEstadisticasProductos: React.FC = () => {
-  const [solicitados, setSolicitados] = useState<ProductoSolicitado[]>([]);
-  const [movimientos, setMovimientos] = useState<ProductoMovimiento[]>([]);
+  const [labelsSolicitados, setLabelsSolicitados] = useState<string[]>([]);
+  const [valuesSolicitados, setValuesSolicitados] = useState<number[]>([]);
+  const [labelsMovimientos, setLabelsMovimientos] = useState<string[]>([]);
+  const [valuesMovimientos, setValuesMovimientos] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,12 +20,29 @@ const VistaEstadisticasProductos: React.FC = () => {
         const config = { withCredentials: true };
 
         const [resSolicitados, resMovimientos] = await Promise.all([
-          axios.get<ProductoSolicitado[]>('http://localhost:3000/productos/solicitados-por-usuario', config),
-          axios.get<ProductoMovimiento[]>('http://localhost:3000/productos/mayor-movimiento', config),
+          axios.get('http://127.0.0.1:8000/api/estadistica/mas-solicitados', config),
+          axios.get('http://127.0.0.1:8000/api/estadisticas/mayor-movimiento', config),
         ]);
 
-        setSolicitados(resSolicitados.data);
-        setMovimientos(resMovimientos.data);
+        // Validar y mapear los datos de "más solicitados"
+        if (
+          resSolicitados.data &&
+          Array.isArray(resSolicitados.data.labels) &&
+          Array.isArray(resSolicitados.data.data)
+        ) {
+          setLabelsSolicitados(resSolicitados.data.labels);
+          setValuesSolicitados(resSolicitados.data.data.map((v: any) => Number(v) || 0));
+        }
+
+        // Validar y mapear los datos de "mayor movimiento"
+        if (
+          resMovimientos.data &&
+          Array.isArray(resMovimientos.data.labels) &&
+          Array.isArray(resMovimientos.data.data)
+        ) {
+          setLabelsMovimientos(resMovimientos.data.labels);
+          setValuesMovimientos(resMovimientos.data.data.map((v: any) => Number(v) || 0));
+        }
       } catch (err) {
         setError('Error al obtener estadísticas de productos');
         console.error(err);
@@ -46,60 +54,13 @@ const VistaEstadisticasProductos: React.FC = () => {
     fetchEstadisticas();
   }, []);
 
-  
-  const labelsSolicitados = solicitados
-    .filter(
-      (p) =>
-        p.nombreCompleto &&
-        p.nombreCompleto.trim() !== '' &&
-        p.totalSolicitado !== null &&
-        !isNaN(Number(p.totalSolicitado))
-    )
-    .map((p) => p.nombreCompleto);
-
-  const valuesSolicitados = solicitados
-    .filter(
-      (p) =>
-        p.nombreCompleto &&
-        p.nombreCompleto.trim() !== '' &&
-        p.totalSolicitado !== null &&
-        !isNaN(Number(p.totalSolicitado))
-    )
-    .map((p) => Number(p.totalSolicitado));
-
-  const coloresSolicitados = labelsSolicitados.map(() => '#3B82F6');
-
-  
-  const labelsMovimientos = movimientos
-    .filter(
-      (p) =>
-        p.nombre &&
-        p.nombre.trim() !== '' &&
-        p.totalMovimiento !== null &&
-        !isNaN(Number(p.totalMovimiento))
-    )
-    .map((p) => p.nombre);
-
-  const valuesMovimientos = movimientos
-    .filter(
-      (p) =>
-        p.nombre &&
-        p.nombre.trim() !== '' &&
-        p.totalMovimiento !== null &&
-        !isNaN(Number(p.totalMovimiento))
-    )
-    .map((p) => Number(p.totalMovimiento));
-
-  const coloresMovimientos = labelsMovimientos.map(() => '#F59E0B');
-
-
   const dataBarSolicitados = {
     labels: labelsSolicitados,
     datasets: [
       {
         label: 'Cantidad solicitada',
         data: valuesSolicitados,
-        backgroundColor: coloresSolicitados,
+        backgroundColor: labelsSolicitados.map(() => '#3B82F6'),
       },
     ],
     title: 'Productos más solicitados',
@@ -111,7 +72,7 @@ const VistaEstadisticasProductos: React.FC = () => {
       {
         label: 'Movimientos',
         data: valuesMovimientos,
-        backgroundColor: coloresMovimientos,
+        backgroundColor: labelsMovimientos.map(() => '#F59E0B'),
       },
     ],
     title: 'Productos con mayor movimiento',
@@ -120,14 +81,15 @@ const VistaEstadisticasProductos: React.FC = () => {
   return (
     <DefaultLayout>
       <div className="p-6 bg-[#0f172a] min-h-screen">
-        <h1 className="text-white text-3xl font-bold mb-6 text-center">Estadísticas de Productos</h1>
+        <h1 className="text-white text-3xl font-bold mb-6 text-center">
+          Estadísticas de Productos
+        </h1>
 
         {loading && <p className="text-white text-center">Cargando estadísticas...</p>}
         {error && <p className="text-red-500 text-center">{error}</p>}
 
         {!loading && !error && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
             <Card className="bg-white text-gray-900 rounded-2xl shadow-md p-6">
               <h2 className="text-xl font-bold mb-2 text-center">Productos más solicitados</h2>
               <p className="text-sm text-gray-600 text-center mb-4">
@@ -138,7 +100,6 @@ const VistaEstadisticasProductos: React.FC = () => {
               </div>
             </Card>
 
-          
             <Card className="bg-white text-gray-900 rounded-2xl shadow-md p-6">
               <h2 className="text-xl font-bold mb-2 text-center">Productos con mayor movimiento</h2>
               <p className="text-sm text-gray-600 text-center mb-4">

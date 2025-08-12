@@ -7,21 +7,22 @@ import { Button } from "@/components/ui/button";
 import DefaultLayout from "@/layouts/default";
 import Modal from "@/components/ui/Modal";
 
-interface UsuarioPorRol {
-  nombreRol: string;
-  cantidad: string; // ← viene como string según tu ejemplo
+interface UsuariosPorRolResponse {
+  labels: string[];
+  data: number[];
 }
 
 export default function UsuariosPorRolCantidad() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  const { data, isLoading, error } = useQuery<UsuarioPorRol[]>({
+  // Consulta con React Query
+  const { data, isLoading, error } = useQuery<UsuariosPorRolResponse>({
     queryKey: ["usuarios-por-rol"],
     queryFn: async () => {
       const res = await axios.get(
-        "http://localhost:3000/usuarios/estadisticas/por-rol",
-        { withCredentials: true } // ← se envía la cookie con el token HTTP Only
+        "http://127.0.0.1:8000/api/estadisticas/usuarios-por-rol",
+        { withCredentials: true }
       );
       return res.data;
     },
@@ -70,6 +71,12 @@ export default function UsuariosPorRolCantidad() {
       </p>
     );
 
+  // Construir arreglo con objetos para facilitar renderizado
+  const usuariosPorRol = data.labels.map((rol, i) => ({
+    nombreRol: rol,
+    cantidad: data.data[i],
+  }));
+
   const ReportContent = () => (
     <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-3xl mx-auto space-y-6 border border-gray-200">
       <table className="w-full text-sm border border-gray-300 rounded text-center">
@@ -80,14 +87,10 @@ export default function UsuariosPorRolCantidad() {
           </tr>
         </thead>
         <tbody className="text-indigo-800 divide-y divide-gray-200">
-          {data.map((rol, i) => (
+          {usuariosPorRol.map((rol, i) => (
             <tr key={i} className="hover:bg-indigo-50 text-sm">
-              <td className="px-4 py-2 border font-medium">
-                {rol.nombreRol}
-              </td>
-              <td className="px-4 py-2 border">
-                {parseInt(rol.cantidad, 10)}
-              </td>
+              <td className="px-4 py-2 border font-medium">{rol.nombreRol}</td>
+              <td className="px-4 py-2 border">{rol.cantidad}</td>
             </tr>
           ))}
         </tbody>
@@ -104,7 +107,8 @@ export default function UsuariosPorRolCantidad() {
               Reporte de Usuarios por Rol
             </h1>
             <p className="text-gray-600 text-sm max-w-2xl">
-              Este reporte muestra cuántos usuarios hay agrupados por su rol en el sistema.
+              Este reporte muestra cuántos usuarios hay agrupados por su rol en
+              el sistema.
             </p>
           </div>
 

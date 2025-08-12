@@ -7,24 +7,23 @@ import { Button } from "@/components/ui/button";
 import DefaultLayout from "@/layouts/default";
 import Modal from "@/components/ui/Modal";
 
-interface ProductoPorSitio {
-  nombreProducto: string;
-  nombreSitio: string | null;
-  stock: string | null;
+interface ReportePorSitioResponse {
+  labels: string[];
+  data: string[]; // o number[], depende de tu backend, aquí uso string para respetar el JSON
 }
 
 export default function ProductosPorSitio() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  const { data, isLoading, error } = useQuery<ProductoPorSitio[]>({
+  const { data, isLoading, error } = useQuery<ReportePorSitioResponse>({
     queryKey: ["productos-por-sitio"],
     queryFn: async () => {
       const config = {
         withCredentials: true, // ✅ ENVÍA LAS COOKIES
       };
 
-      const res = await axios.get("http://localhost:3000/productos/por-sitio", config);
+      const res = await axios.get("http://127.0.0.1:8000/api/reporte-por-sitio/productos", config);
       return res.data;
     },
   });
@@ -57,7 +56,8 @@ export default function ProductosPorSitio() {
 
   if (isLoading) return <p className="p-6">Cargando datos...</p>;
   if (error) return <p className="p-6 text-red-500">Error al cargar datos.</p>;
-  if (!Array.isArray(data)) return <p className="p-6">No se encontraron datos válidos.</p>;
+  if (!data || !Array.isArray(data.labels) || !Array.isArray(data.data))
+    return <p className="p-6">No se encontraron datos válidos.</p>;
 
   const ReportContent = () => (
     <div className="bg-white p-8 rounded-xl shadow-lg max-w-5xl mx-auto">
@@ -74,18 +74,16 @@ export default function ProductosPorSitio() {
         <thead>
           <tr className="bg-blue-800 text-white">
             <th className="p-3 border border-gray-300 text-left">#</th>
-            <th className="p-3 border border-gray-300 text-left">Producto</th>
             <th className="p-3 border border-gray-300 text-left">Sitio</th>
             <th className="p-3 border border-gray-300 text-right">Stock</th>
           </tr>
         </thead>
         <tbody>
-          {data.map((item, index) => (
+          {data.labels.map((sitio, index) => (
             <tr key={index} className="hover:bg-gray-100">
               <td className="p-3 border border-gray-300">{index + 1}</td>
-              <td className="p-3 border border-gray-300">{item?.nombreProducto ?? "N/A"}</td>
-              <td className="p-3 border border-gray-300">{item?.nombreSitio ?? "No asignado"}</td>
-              <td className="p-3 border border-gray-300 text-right">{item?.stock ?? "0"}</td>
+              <td className="p-3 border border-gray-300">{sitio}</td>
+              <td className="p-3 border border-gray-300 text-right">{data.data[index]}</td>
             </tr>
           ))}
         </tbody>

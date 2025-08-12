@@ -5,19 +5,14 @@ import { BarChart } from './Graficasbases/GraficasBaseProductos';
 import axios from 'axios';
 import DefaultLayout from '@/layouts/default';
 
-interface ProductosPorUsuario {
-  nombreCompleto: string;
-  totalSolicitado: number;
-}
-
-interface UsuariosPorRol {
-  nombreRol: string;
-  cantidad: number;
+interface ChartData {
+  labels: string[];
+  data: number[];
 }
 
 export default function VistaEstadisticasUsuarios() {
-  const [productosPorUsuario, setProductosPorUsuario] = useState<ProductosPorUsuario[]>([]);
-  const [usuariosPorRol, setUsuariosPorRol] = useState<UsuariosPorRol[]>([]);
+  const [productosPorUsuario, setProductosPorUsuario] = useState<ChartData>({ labels: [], data: [] });
+  const [usuariosPorRol, setUsuariosPorRol] = useState<ChartData>({ labels: [], data: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,36 +20,28 @@ export default function VistaEstadisticasUsuarios() {
     const fetchData = async () => {
       try {
         const config = {
-          withCredentials: true, // ✅ Enviar cookies automáticamente
+          withCredentials: true, // Enviar cookies automáticamente
         };
 
-        const urlProductos = 'http://localhost:3000/productos/solicitados-por-usuario';
-        const urlRoles = 'http://localhost:3000/usuarios/estadisticas/por-rol';
+        const urlProductos = 'http://127.0.0.1:8000/api/estadisticas/solicitudes-por-usuario';
+        const urlRoles = 'http://127.0.0.1:8000/api/estadisticas/usuarios-por-rol';
 
         const [productosRes, rolesRes] = await Promise.all([
           axios.get(urlProductos, config),
           axios.get(urlRoles, config),
         ]);
 
-        const productosValidos = productosRes.data
-          .filter(
-            (p: any) =>
-              p.nombreCompleto && p.nombreCompleto.trim() !== '' && p.totalSolicitado !== null
-          )
-          .map((p: any) => ({
-            nombreCompleto: p.nombreCompleto,
-            totalSolicitado: Number(p.totalSolicitado),
-          }));
+        // Guardamos los datos tal cual vienen
+        setProductosPorUsuario({
+          labels: productosRes.data.labels || [],
+          data: productosRes.data.data || [],
+        });
 
-        const rolesValidos = rolesRes.data
-          .filter((r: any) => r.nombreRol && r.cantidad !== null)
-          .map((r: any) => ({
-            nombreRol: r.nombreRol,
-            cantidad: Number(r.cantidad),
-          }));
+        setUsuariosPorRol({
+          labels: rolesRes.data.labels || [],
+          data: rolesRes.data.data || [],
+        });
 
-        setProductosPorUsuario(productosValidos);
-        setUsuariosPorRol(rolesValidos);
       } catch (err) {
         setError('Error al obtener datos de estadísticas.');
         console.error('❌', err);
@@ -79,14 +66,14 @@ export default function VistaEstadisticasUsuarios() {
             {/* Productos solicitados por usuario */}
             <div className="bg-white text-black rounded-2xl shadow p-6 h-[28rem]">
               <h3 className="text-xl font-semibold mb-4">Solicitudes por usuario</h3>
-              {productosPorUsuario.length > 0 ? (
+              {productosPorUsuario.labels.length > 0 ? (
                 <BarChart
                   data={{
-                    labels: productosPorUsuario.map((u) => u.nombreCompleto),
+                    labels: productosPorUsuario.labels,
                     datasets: [
                       {
                         label: 'Total Solicitado',
-                        data: productosPorUsuario.map((u) => u.totalSolicitado),
+                        data: productosPorUsuario.data,
                         backgroundColor: 'rgba(59, 130, 246, 0.6)',
                       },
                     ],
@@ -101,14 +88,14 @@ export default function VistaEstadisticasUsuarios() {
             {/* Usuarios por rol */}
             <div className="bg-white text-black rounded-2xl shadow p-6 h-[28rem]">
               <h3 className="text-xl font-semibold mb-4">Distribución de usuarios por rol</h3>
-              {usuariosPorRol.length > 0 ? (
+              {usuariosPorRol.labels.length > 0 ? (
                 <BarChart
                   data={{
-                    labels: usuariosPorRol.map((r) => r.nombreRol),
+                    labels: usuariosPorRol.labels,
                     datasets: [
                       {
                         label: 'Cantidad de Usuarios',
-                        data: usuariosPorRol.map((r) => r.cantidad),
+                        data: usuariosPorRol.data,
                         backgroundColor: 'rgba(34, 197, 94, 0.6)',
                       },
                     ],

@@ -7,18 +7,31 @@ import { Button } from "@/components/ui/button";
 import DefaultLayout from "@/layouts/default";
 import Modal from "@/components/ui/Modal";
 
+interface ProductoProximoVencer {
+  id: number;
+  nombre: string;
+  fecha_vencimiento: string; // o fechaVencimiento, ajusta según backend
+  stock_total: number;
+}
+
+interface ProductosProximosVencerResponse {
+  data: ProductoProximoVencer[];
+}
+
 export default function ProductosProximosAVencer() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery<ProductosProximosVencerResponse>({
     queryKey: ["productos-proximos-vencer"],
     queryFn: async () => {
       const config = {
-        withCredentials: true, // ✅ El token se enviará automáticamente si está en las cookies
+        withCredentials: true,
       };
-
-      const res = await axios.get("http://localhost:3000/productos/proximos-vencer", config);
+      const res = await axios.get(
+        "http://127.0.0.1:8000/api/reportes/productos-proximos-vencer",
+        config
+      );
       return res.data;
     },
   });
@@ -59,7 +72,9 @@ export default function ProductosProximosAVencer() {
 
   if (isLoading) return <p className="p-6">Cargando datos...</p>;
   if (error) return <p className="p-6 text-red-500">Error al cargar los datos.</p>;
-  if (!Array.isArray(data)) return <p className="p-6">No se encontraron datos.</p>;
+  if (!data?.data) return <p className="p-6">No se encontraron datos.</p>;
+
+  const productos = data.data;
 
   const ReportContent = () => (
     <div className="bg-white p-6 rounded-xl shadow-lg max-w-6xl mx-auto border border-gray-200">
@@ -78,41 +93,56 @@ export default function ProductosProximosAVencer() {
         </p>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full table-auto border-collapse border border-gray-300">
-          <thead className="bg-blue-100 text-blue-900 text-left text-sm font-semibold">
-            <tr>
-              <th className="border border-gray-300 px-4 py-2">#</th>
-              <th className="border border-gray-300 px-4 py-2">Producto</th>
-              <th className="border border-gray-300 px-4 py-2">Fecha de Vencimiento</th>
-              <th className="border border-gray-300 px-4 py-2 text-right">Stock Total</th>
-            </tr>
-          </thead>
-          <tbody className="text-sm text-gray-700">
-            {data.map((prod: any, index: number) => {
-              const totalStock = prod.inventarios?.reduce(
-                (acc: number, inv: any) => acc + (inv?.stock || 0),
-                0
-              );
+      {productos.length === 0 ? (
+        <p className="text-center text-gray-600 text-lg py-10">
+          No hay productos próximos a vencer.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full table-auto border-collapse border border-gray-300">
+            <thead className="bg-blue-100 text-blue-900 text-left text-sm font-semibold">
+              <tr>
+                <th className="border border-gray-300 px-4 py-2">#</th>
+                <th className="border border-gray-300 px-4 py-2">Producto</th>
+                <th className="border border-gray-300 px-4 py-2">Fecha de Vencimiento</th>
+                <th className="border border-gray-300 px-4 py-2 text-right">Stock Total</th>
+              </tr>
+            </thead>
+            <tbody className="text-sm text-gray-700">
+              {productos.map((prod, index) => {
+                // Formatear fecha si viene como string dd/mm/yyyy o ISO
+                let fechaFormateada = prod.fecha_vencimiento;
+                if (prod.fecha_vencimiento && prod.fecha_vencimiento.includes("/")) {
+                  const [day, month, year] = prod.fecha_vencimiento.split("/");
+                  const fechaObj = new Date(+year, +month - 1, +day);
+                  fechaFormateada = fechaObj.toLocaleDateString("es-ES", {
+                    day: "2-digit",
+                    month: "long",
+                    year: "numeric",
+                  });
+                } else if (prod.fecha_vencimiento) {
+                  fechaFormateada = new Date(prod.fecha_vencimiento).toLocaleDateString("es-ES", {
+                    day: "2-digit",
+                    month: "long",
+                    year: "numeric",
+                  });
+                } else {
+                  fechaFormateada = "Sin fecha";
+                }
 
-              return (
-                <tr key={prod.id} className="hover:bg-blue-50 transition-colors">
-                  <td className="border border-gray-300 px-4 py-2">{index + 1}</td>
-                  <td className="border border-gray-300 px-4 py-2">{prod.nombre}</td>
-                  <td className="border border-gray-300 px-4 py-2">
-                    {prod.fechaVencimiento
-                      ? new Date(prod.fechaVencimiento).toLocaleDateString("es-ES")
-                      : "Sin fecha"}
-                  </td>
-                  <td className="border border-gray-300 px-4 py-2 text-right">
-                    {totalStock ?? 0}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                return (
+                  <tr key={prod.id || index} className="hover:bg-blue-50 transition-colors">
+                    <td className="border border-gray-300 px-4 py-2">{index + 1}</td>
+                    <td className="border border-gray-300 px-4 py-2">{prod.nombre}</td>
+                    <td className="border border-gray-300 px-4 py-2">{fechaFormateada}</td>
+                    <td className="border border-gray-300 px-4 py-2 text-right">{prod.stock_total ?? 0}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 

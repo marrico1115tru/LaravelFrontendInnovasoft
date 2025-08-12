@@ -8,24 +8,26 @@ import DefaultLayout from "@/layouts/default";
 import Modal from "@/components/ui/Modal";
 
 interface ProductoVencido {
-  id: number;
   nombre: string;
-  fechaVencimiento: string;
-  inventarios: { stock: number }[];
+  fecha_vencimiento: string; // Fecha en formato dd/mm/yyyy
+  stock_total: number;
+}
+
+interface ProductosVencidosResponse {
+  data: ProductoVencido[];
 }
 
 export default function ProductosVencidos() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  const { data, isLoading, error } = useQuery<ProductoVencido[]>({
+  const { data, isLoading, error } = useQuery<ProductosVencidosResponse>({
     queryKey: ["productos-vencidos"],
     queryFn: async () => {
       const config = {
-        withCredentials: true, // ✅ para incluir cookies en la petición
+        withCredentials: true,
       };
-
-      const res = await axios.get("http://localhost:3000/productos/vencidos", config);
+      const res = await axios.get("http://127.0.0.1:8000/api/reportes/productos-vencidos", config);
       return res.data;
     },
   });
@@ -66,7 +68,8 @@ export default function ProductosVencidos() {
 
   if (isLoading) return <p className="p-6">Cargando...</p>;
   if (error) return <p className="p-6 text-red-500">Error al cargar productos vencidos.</p>;
-  if (!Array.isArray(data)) return <p className="p-6">No se encontraron datos.</p>;
+  if (!data?.data || !Array.isArray(data.data))
+    return <p className="p-6">No se encontraron datos.</p>;
 
   const ReportContent = () => (
     <div className="bg-white p-6 rounded-xl shadow-lg max-w-6xl mx-auto border border-gray-200">
@@ -96,24 +99,22 @@ export default function ProductosVencidos() {
             </tr>
           </thead>
           <tbody className="text-sm text-gray-700">
-            {data.map((prod, index) => {
-              const cantidadTotal = prod.inventarios?.reduce(
-                (acc, inv) => acc + (inv?.stock ?? 0),
-                0
-              );
+            {data.data.map((prod, index) => {
+              // Formatear fecha dd/mm/yyyy a objeto Date para mostrar bonito:
+              const [day, month, year] = prod.fecha_vencimiento.split("/");
+              const fechaObj = new Date(+year, +month - 1, +day);
+              const fechaFormateada = fechaObj.toLocaleDateString("es-ES", {
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+              });
 
               return (
-                <tr key={prod.id} className="hover:bg-blue-50 transition-colors">
+                <tr key={index} className="hover:bg-blue-50 transition-colors">
                   <td className="border border-gray-300 px-4 py-2">{index + 1}</td>
                   <td className="border border-gray-300 px-4 py-2">{prod.nombre}</td>
-                  <td className="border border-gray-300 px-4 py-2">
-                    {prod.fechaVencimiento
-                      ? new Date(prod.fechaVencimiento).toLocaleDateString("es-ES")
-                      : "Sin fecha"}
-                  </td>
-                  <td className="border border-gray-300 px-4 py-2">
-                    {cantidadTotal > 0 ? cantidadTotal : "Sin stock"}
-                  </td>
+                  <td className="border border-gray-300 px-4 py-2">{fechaFormateada}</td>
+                  <td className="border border-gray-300 px-4 py-2">{prod.stock_total}</td>
                 </tr>
               );
             })}

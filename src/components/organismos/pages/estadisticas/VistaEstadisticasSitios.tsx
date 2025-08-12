@@ -4,13 +4,14 @@ import { BarChart, PieChart } from './Graficasbases/GraficasBaseSitios';
 import { Card } from '@/components/ui/card';
 import DefaultLayout from '@/layouts/default';
 
-interface SitioEstadistica {
-  estado: string;
-  cantidad: number;
+interface EstadisticasSitiosResponse {
+  labels: string[];
+  data: number[];
 }
 
 const VistaEstadisticasSitios: React.FC = () => {
-  const [estadisticas, setEstadisticas] = useState<SitioEstadistica[]>([]);
+  const [labels, setLabels] = useState<string[]>([]);
+  const [values, setValues] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,13 +19,14 @@ const VistaEstadisticasSitios: React.FC = () => {
     const fetchEstadisticas = async () => {
       try {
         const config = {
-          withCredentials: true, // 🔐 Enviar cookies al backend
+          withCredentials: true, // Enviar cookies si es necesario
         };
 
-        const url = 'http://localhost:3000/sitio/estadisticas/por-estado';
-        const response = await axios.get<SitioEstadistica[]>(url, config);
+        const url = 'http://127.0.0.1:8000/api/estadisticas/sitios';
+        const response = await axios.get<EstadisticasSitiosResponse>(url, config);
 
-        setEstadisticas(response.data);
+        setLabels(response.data.labels);
+        setValues(response.data.data);
       } catch (err) {
         setError('Error al obtener estadísticas de sitios');
         console.error(err);
@@ -36,17 +38,18 @@ const VistaEstadisticasSitios: React.FC = () => {
     fetchEstadisticas();
   }, []);
 
-  const labels = estadisticas.map((e) => e.estado);
-  const values = estadisticas.map((e) => e.cantidad);
+  // Colores según estado (puedes ajustar más casos si tienes más labels)
   const colores = labels.map((estado) =>
     estado === 'ACTIVO' ? '#4ADE80' : '#F87171'
   );
 
+  // Calcular total y porcentajes
   const total = values.reduce((acc, val) => acc + val, 0);
   const porcentajes = values.map((valor) =>
     total > 0 ? Number(((valor / total) * 100).toFixed(2)) : 0
   );
 
+  // Datos para las gráficas
   const dataBarSitios = {
     labels,
     datasets: [
