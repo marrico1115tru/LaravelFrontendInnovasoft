@@ -1,31 +1,23 @@
-import axios from 'axios';
-
-const BASE_URL = 'http://127.0.0.1:8000/api/roles';
+import api from "@/Api/api";
 
 export const getRoles = async () => {
-  const response = await axios.get(BASE_URL);
-  // Se espera que cada rol pueda traer usuarios y permisos relacionados si el backend así lo retorna
-  return response.data;
+  const { data } = await api.get("/roles");
+  return data;
 };
 
 export const createRol = async (data: any) => {
-  // El backend espera nombre_rol, no nombreRol (percibiendo que el campo en migration es nombre_rol)
-  const payload = {
-    nombre_rol: data.nombreRol || data.nombre_rol,
-  };
-  const response = await axios.post(BASE_URL, payload);
-  return response.data;
+  const payload = { nombre_rol: data.nombreRol || data.nombre_rol };
+  const { data: res } = await api.post("/roles", payload);
+  return res;
 };
 
 export const updateRol = async (id: number, data: any) => {
-  const payload = {
-    nombre_rol: data.nombreRol || data.nombre_rol,
-  };
-  const response = await axios.put(`${BASE_URL}/${id}`, payload);
-  return response.data;
+  const payload = { nombre_rol: data.nombreRol || data.nombre_rol };
+  const { data: res } = await api.put(`/roles/${id}`, payload);
+  return res;
 };
 
 export const deleteRol = async (id: number) => {
-  const response = await axios.delete(`${BASE_URL}/${id}`);
-  return response.data;
+  const { data: res } = await api.delete(`/roles/${id}`);
+  return res;
 };

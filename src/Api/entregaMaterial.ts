@@ -1,18 +1,13 @@
-import axios from "axios";
+import api from "@/Api/api"; 
 import { EntregaMaterial } from "@/types/types/EntregaMaterial";
 
-const API_URL = "http://127.0.0.1:8000/api/entregas-materiales";
-
-const config = {
-  withCredentials: true,
-};
+const API_URL = "/entregas-materiales"; // ya no ponemos el host porque lo maneja api.ts
 
 /** Obtiene todas las entregas con objetos relacionados completos */
 export const getEntregasMaterial = async (): Promise<EntregaMaterial[]> => {
-  const res = await axios.get(API_URL, config);
+  const res = await api.get(API_URL);
   return res.data.map((item: any) => ({
     ...item,
-    // Aquí traemos los objetos completos anidados que el backend envía
     ficha: item.ficha || null,
     solicitud: item.solicitud || null,
     responsable: item.responsable || null,
@@ -32,7 +27,7 @@ export interface EntregaMaterialPayload {
 export const createEntregaMaterial = async (
   data: EntregaMaterialPayload
 ): Promise<EntregaMaterial> => {
-  const res = await axios.post(API_URL, data, config);
+  const res = await api.post(API_URL, data);
   return res.data;
 };
 
@@ -41,11 +36,11 @@ export const updateEntregaMaterial = async (
   id: number,
   data: EntregaMaterialPayload
 ): Promise<EntregaMaterial> => {
-  const res = await axios.put(`${API_URL}/${id}`, data, config);
+  const res = await api.put(`${API_URL}/${id}`, data);
   return res.data;
 };
 
 /** Eliminar entrega */
 export const deleteEntregaMaterial = async (id: number): Promise<void> => {
-  await axios.delete(`${API_URL}/${id}`, config);
+  await api.delete(`${API_URL}/${id}`);
 };

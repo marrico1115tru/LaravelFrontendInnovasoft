@@ -1,26 +1,30 @@
 import { useQuery } from "@tanstack/react-query";
-import axios from "axios";
 import { useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { Button } from "@/components/ui/button";
 import DefaultLayout from "@/layouts/default";
 import Modal from "@/components/ui/Modal";
+import api from "@/Api/api";
+
+interface UsuarioMayorUso {
+  id: number;
+  nombre: string;
+  apellido: string;
+  total_solicitudes: number;
+}
 
 export default function UsuariosMayorUso() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["usuarios-mayor-uso-productos"],
+  const { data, isLoading, error } = useQuery<UsuarioMayorUso[]>({
+    queryKey: ["usuarios-mayor-uso"],
     queryFn: async () => {
-      const res = await axios.get(
-        "http://localhost:3000/usuarios/usuarios-top-solicitudes",
-        {
-          withCredentials: true, // ✅ Esto permite enviar cookies HTTP-only
-        }
-      );
-      return res.data;
+      const { data } = await api.get("/reportes/usuarios-mayor-uso", {
+        withCredentials: true,
+      });
+      return data;
     },
   });
 
@@ -55,11 +59,16 @@ export default function UsuariosMayorUso() {
       pdf.addImage(imgData, "PNG", 0, 0, pageWidth, pdfHeight);
     }
 
-    pdf.save("usuarios_mayor_uso_productos.pdf");
+    pdf.save("usuarios_mayor_uso.pdf");
   };
 
   if (isLoading) return <p className="p-6 text-lg text-center">Cargando...</p>;
-  if (error) return <p className="p-6 text-lg text-red-600 text-center">Error al cargar datos.</p>;
+  if (error || !data)
+    return (
+      <p className="p-6 text-lg text-red-600 text-center">
+        Error al cargar datos.
+      </p>
+    );
 
   const ReportContent = () => (
     <div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-5xl mx-auto border border-gray-200">
@@ -88,9 +97,11 @@ export default function UsuariosMayorUso() {
           </tr>
         </thead>
         <tbody className="text-sm text-blue-800">
-          {data.map((usuario: any, index: number) => (
+          {data.map((usuario, index) => (
             <tr key={usuario.id} className="hover:bg-blue-50">
-              <td className="p-3 border font-bold text-blue-700">{index + 1}</td>
+              <td className="p-3 border font-bold text-blue-700">
+                {index + 1}
+              </td>
               <td className="p-3 border">{usuario.nombre}</td>
               <td className="p-3 border">{usuario.apellido}</td>
               <td className="p-3 border">{usuario.total_solicitudes}</td>
@@ -105,7 +116,9 @@ export default function UsuariosMayorUso() {
     <DefaultLayout>
       <div className="p-8 bg-gray-50 min-h-screen">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold text-blue-900">Usuarios con Mayor Uso de Productos</h1>
+          <h1 className="text-4xl font-bold text-blue-900">
+            Usuarios con Mayor Uso de Productos
+          </h1>
           <div className="flex gap-4">
             <Button
               onClick={() => setShowPreview(true)}
@@ -130,7 +143,9 @@ export default function UsuariosMayorUso() {
           <Modal onClose={() => setShowPreview(false)}>
             <div className="p-6 bg-white rounded-lg shadow-lg max-h-[80vh] overflow-auto">
               <div className="text-center mb-4">
-                <h2 className="text-2xl font-bold text-blue-700">Previsualización del Reporte</h2>
+                <h2 className="text-2xl font-bold text-blue-700">
+                  Previsualización del Reporte
+                </h2>
               </div>
               <hr className="my-2 border-gray-200" />
               <ReportContent />

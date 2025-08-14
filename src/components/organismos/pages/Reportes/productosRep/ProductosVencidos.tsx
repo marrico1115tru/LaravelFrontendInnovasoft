@@ -1,15 +1,16 @@
+// src/pages/ProductosVencidos.tsx
 import { useQuery } from "@tanstack/react-query";
-import axios from "axios";
 import { useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { Button } from "@/components/ui/button";
 import DefaultLayout from "@/layouts/default";
 import Modal from "@/components/ui/Modal";
+import api from "@/Api/api";
 
 interface ProductoVencido {
   nombre: string;
-  fecha_vencimiento: string; // Fecha en formato dd/mm/yyyy
+  fecha_vencimiento: string; 
   stock_total: number;
 }
 
@@ -24,10 +25,7 @@ export default function ProductosVencidos() {
   const { data, isLoading, error } = useQuery<ProductosVencidosResponse>({
     queryKey: ["productos-vencidos"],
     queryFn: async () => {
-      const config = {
-        withCredentials: true,
-      };
-      const res = await axios.get("http://127.0.0.1:8000/api/reportes/productos-vencidos", config);
+      const res = await api.get("/reportes/productos-vencidos");
       return res.data;
     },
   });
@@ -68,8 +66,7 @@ export default function ProductosVencidos() {
 
   if (isLoading) return <p className="p-6">Cargando...</p>;
   if (error) return <p className="p-6 text-red-500">Error al cargar productos vencidos.</p>;
-  if (!data?.data || !Array.isArray(data.data))
-    return <p className="p-6">No se encontraron datos.</p>;
+  if (!data?.data?.length) return <p className="p-6">No se encontraron datos.</p>;
 
   const ReportContent = () => (
     <div className="bg-white p-6 rounded-xl shadow-lg max-w-6xl mx-auto border border-gray-200">
@@ -100,7 +97,6 @@ export default function ProductosVencidos() {
           </thead>
           <tbody className="text-sm text-gray-700">
             {data.data.map((prod, index) => {
-              // Formatear fecha dd/mm/yyyy a objeto Date para mostrar bonito:
               const [day, month, year] = prod.fecha_vencimiento.split("/");
               const fechaObj = new Date(+year, +month - 1, +day);
               const fechaFormateada = fechaObj.toLocaleDateString("es-ES", {

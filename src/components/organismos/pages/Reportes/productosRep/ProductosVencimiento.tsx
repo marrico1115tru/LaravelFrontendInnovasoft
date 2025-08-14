@@ -1,16 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import axios from "axios";
 import { useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { Button } from "@/components/ui/button";
 import DefaultLayout from "@/layouts/default";
 import Modal from "@/components/ui/Modal";
+import api from "@/Api/api"; // ← Aquí usamos la instancia configurada
 
 interface ProductoProximoVencer {
   id: number;
   nombre: string;
-  fecha_vencimiento: string; // o fechaVencimiento, ajusta según backend
+  fecha_vencimiento: string;
   stock_total: number;
 }
 
@@ -25,13 +25,9 @@ export default function ProductosProximosAVencer() {
   const { data, isLoading, error } = useQuery<ProductosProximosVencerResponse>({
     queryKey: ["productos-proximos-vencer"],
     queryFn: async () => {
-      const config = {
+      const res = await api.get("/reportes/productos-proximos-vencer", {
         withCredentials: true,
-      };
-      const res = await axios.get(
-        "http://127.0.0.1:8000/api/reportes/productos-proximos-vencer",
-        config
-      );
+      });
       return res.data;
     },
   });
@@ -110,9 +106,8 @@ export default function ProductosProximosAVencer() {
             </thead>
             <tbody className="text-sm text-gray-700">
               {productos.map((prod, index) => {
-                // Formatear fecha si viene como string dd/mm/yyyy o ISO
                 let fechaFormateada = prod.fecha_vencimiento;
-                if (prod.fecha_vencimiento && prod.fecha_vencimiento.includes("/")) {
+                if (prod.fecha_vencimiento?.includes("/")) {
                   const [day, month, year] = prod.fecha_vencimiento.split("/");
                   const fechaObj = new Date(+year, +month - 1, +day);
                   fechaFormateada = fechaObj.toLocaleDateString("es-ES", {

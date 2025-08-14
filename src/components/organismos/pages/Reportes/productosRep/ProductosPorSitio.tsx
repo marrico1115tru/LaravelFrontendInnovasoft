@@ -1,15 +1,17 @@
+"use client";
+
 import { useQuery } from "@tanstack/react-query";
-import axios from "axios";
 import { useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { Button } from "@/components/ui/button";
 import DefaultLayout from "@/layouts/default";
 import Modal from "@/components/ui/Modal";
+import api from "@/Api/api"; 
 
 interface ReportePorSitioResponse {
   labels: string[];
-  data: string[]; // o number[], depende de tu backend, aquí uso string para respetar el JSON
+  data: (string | number)[];
 }
 
 export default function ProductosPorSitio() {
@@ -19,11 +21,9 @@ export default function ProductosPorSitio() {
   const { data, isLoading, error } = useQuery<ReportePorSitioResponse>({
     queryKey: ["productos-por-sitio"],
     queryFn: async () => {
-      const config = {
-        withCredentials: true, // ✅ ENVÍA LAS COOKIES
-      };
-
-      const res = await axios.get("http://127.0.0.1:8000/api/reporte-por-sitio/productos", config);
+      const res = await api.get<ReportePorSitioResponse>(
+        "/reporte-por-sitio/productos"
+      );
       return res.data;
     },
   });
@@ -54,8 +54,10 @@ export default function ProductosPorSitio() {
     pdf.save("reporte_productos_por_sitio.pdf");
   };
 
-  if (isLoading) return <p className="p-6">Cargando datos...</p>;
-  if (error) return <p className="p-6 text-red-500">Error al cargar datos.</p>;
+  if (isLoading)
+    return <p className="p-6">Cargando datos...</p>;
+  if (error)
+    return <p className="p-6 text-red-500">Error al cargar datos.</p>;
   if (!data || !Array.isArray(data.labels) || !Array.isArray(data.data))
     return <p className="p-6">No se encontraron datos válidos.</p>;
 
@@ -83,7 +85,9 @@ export default function ProductosPorSitio() {
             <tr key={index} className="hover:bg-gray-100">
               <td className="p-3 border border-gray-300">{index + 1}</td>
               <td className="p-3 border border-gray-300">{sitio}</td>
-              <td className="p-3 border border-gray-300 text-right">{data.data[index]}</td>
+              <td className="p-3 border border-gray-300 text-right">
+                {data.data[index]}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -120,7 +124,9 @@ export default function ProductosPorSitio() {
           <Modal onClose={() => setShowPreview(false)}>
             <div className="p-6 max-h-[80vh] overflow-auto bg-white rounded-lg shadow-lg">
               <div className="text-center mb-4">
-                <h2 className="text-2xl font-bold text-blue-700">Previsualización del Reporte</h2>
+                <h2 className="text-2xl font-bold text-blue-700">
+                  Previsualización del Reporte
+                </h2>
               </div>
               <hr className="my-2 border-t-2 border-gray-200" />
               <div className="p-4">

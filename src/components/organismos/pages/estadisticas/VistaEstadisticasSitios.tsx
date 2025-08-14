@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { BarChart, PieChart } from './Graficasbases/GraficasBaseSitios';
-import { Card } from '@/components/ui/card';
-import DefaultLayout from '@/layouts/default';
+import { useEffect, useState } from "react";
+import api from "@/Api/api"; 
+import { BarChart, PieChart } from "./Graficasbases/GraficasBaseSitios";
+import { Card } from "@/components/ui/card";
+import DefaultLayout from "@/layouts/default";
 
 interface EstadisticasSitiosResponse {
   labels: string[];
@@ -18,18 +18,15 @@ const VistaEstadisticasSitios: React.FC = () => {
   useEffect(() => {
     const fetchEstadisticas = async () => {
       try {
-        const config = {
-          withCredentials: true, // Enviar cookies si es necesario
-        };
+        const { data } = await api.get<EstadisticasSitiosResponse>(
+          "/estadisticas/sitios"
+        );
 
-        const url = 'http://127.0.0.1:8000/api/estadisticas/sitios';
-        const response = await axios.get<EstadisticasSitiosResponse>(url, config);
-
-        setLabels(response.data.labels);
-        setValues(response.data.data);
+        setLabels(data.labels);
+        setValues(data.data);
       } catch (err) {
-        setError('Error al obtener estadísticas de sitios');
-        console.error(err);
+        setError("Error al obtener estadísticas de sitios");
+        console.error("❌ Error al obtener estadísticas de sitios:", err);
       } finally {
         setLoading(false);
       }
@@ -38,9 +35,9 @@ const VistaEstadisticasSitios: React.FC = () => {
     fetchEstadisticas();
   }, []);
 
-  // Colores según estado (puedes ajustar más casos si tienes más labels)
+  // Colores según estado
   const colores = labels.map((estado) =>
-    estado === 'ACTIVO' ? '#4ADE80' : '#F87171'
+    estado === "ACTIVO" ? "#4ADE80" : "#F87171"
   );
 
   // Calcular total y porcentajes
@@ -49,12 +46,12 @@ const VistaEstadisticasSitios: React.FC = () => {
     total > 0 ? Number(((valor / total) * 100).toFixed(2)) : 0
   );
 
-  // Datos para las gráficas
+  // Datos para gráficas
   const dataBarSitios = {
     labels,
     datasets: [
       {
-        label: 'Cantidad de Sitios',
+        label: "Cantidad de Sitios",
         data: values,
         backgroundColor: colores,
       },
@@ -74,15 +71,21 @@ const VistaEstadisticasSitios: React.FC = () => {
   return (
     <DefaultLayout>
       <div className="p-6 bg-[#0f172a] min-h-screen">
-        <h1 className="text-white text-3xl font-bold mb-6 text-center">Estadísticas de Sitios</h1>
+        <h1 className="text-white text-3xl font-bold mb-6 text-center">
+          Estadísticas de Sitios
+        </h1>
 
-        {loading && <p className="text-white text-center">Cargando estadísticas...</p>}
+        {loading && (
+          <p className="text-white text-center">Cargando estadísticas...</p>
+        )}
         {error && <p className="text-red-500 text-center">{error}</p>}
 
         {!loading && !error && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="bg-white text-gray-900 rounded-2xl shadow-md p-6">
-              <h2 className="text-xl font-bold mb-2 text-center">Sitios Activos vs Inactivos</h2>
+              <h2 className="text-xl font-bold mb-2 text-center">
+                Sitios Activos vs Inactivos
+              </h2>
               <p className="text-sm text-gray-600 text-center mb-4">
                 Comparación de sitios activos e inactivos
               </p>
@@ -92,7 +95,9 @@ const VistaEstadisticasSitios: React.FC = () => {
             </Card>
 
             <Card className="bg-white text-gray-900 rounded-2xl shadow-md p-6">
-              <h2 className="text-xl font-bold mb-2 text-center">Distribución de Sitios (%)</h2>
+              <h2 className="text-xl font-bold mb-2 text-center">
+                Distribución de Sitios (%)
+              </h2>
               <p className="text-sm text-gray-600 text-center mb-4">
                 Porcentaje de sitios activos e inactivos
               </p>

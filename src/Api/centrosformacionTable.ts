@@ -1,30 +1,53 @@
-// src/Api/centrosformacionTable.ts
-import axios from "axios";
+import api from "@/Api/api"; 
 
-const API_URL = "http://127.0.0.1:8000/api/centros-formacion";
 
 export const getCentrosFormacion = async () => {
-  const response = await axios.get(API_URL);
-  return response.data;
+  try {
+    const { data } = await api.get("/centros-formacion");
+    return data;
+  } catch (error) {
+    console.error("❌ Error al listar centros de formación:", error);
+    throw new Error("Error al listar centros de formación");
+  }
 };
+
 
 export const createCentroFormacion = async (data: any) => {
-  const response = await axios.post(API_URL, {
-    ...data,
-    id_municipio: data.idMunicipio.id, // <-- importante
-  });
-  return response.data;
+  try {
+    const payload = {
+      ...data,
+      id_municipio: data.idMunicipio?.id, 
+    };
+    const { data: res } = await api.post("/centros-formacion", payload);
+    return res;
+  } catch (error) {
+    console.error("❌ Error al crear centro de formación:", error);
+    throw new Error("Error al crear centro de formación");
+  }
 };
+
 
 export const updateCentroFormacion = async (id: number, data: any) => {
-  const response = await axios.put(`${API_URL}/${id}`, {
-    ...data,
-    id_municipio: data.idMunicipio.id, // <-- importante
-  });
-  return response.data;
+  try {
+    const payload = {
+      ...data,
+      id_municipio: data.idMunicipio?.id,
+    };
+    const { data: res } = await api.put(`/centros-formacion/${id}`, payload);
+    return res;
+  } catch (error) {
+    console.error("❌ Error al actualizar centro de formación:", error);
+    throw new Error("Error al actualizar centro de formación");
+  }
 };
 
+
 export const deleteCentroFormacion = async (id: number) => {
-  const response = await axios.delete(`${API_URL}/${id}`);
-  return response.data;
+  try {
+    const { data } = await api.delete(`/centros-formacion/${id}`);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al eliminar centro de formación:", error);
+    throw new Error("Error al eliminar centro de formación");
+  }
 };

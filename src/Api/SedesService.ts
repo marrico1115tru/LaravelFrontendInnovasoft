@@ -1,35 +1,62 @@
-import axios from 'axios';
+// src/Api/sedes.ts
+import api from "@/Api/api";
 
-const BASE_URL = 'http://127.0.0.1:8000/api/sedes';
-
+/** Obtener lista de sedes */
 export const getSedes = async () => {
-  const response = await axios.get(BASE_URL);
-  // Response contiene "centro_formacion"
-  return response.data;
+  try {
+    const { data } = await api.get("/sedes");
+    return data; // Incluye "centro_formacion" según backend
+  } catch (error) {
+    console.error("❌ Error al obtener sedes:", error);
+    throw new Error("Error al obtener sedes");
+  }
 };
 
-export const createSede = async (data: any) => {
-  // Para crear o actualizar, envía el id_centro_formacion directamente
-  const payload = {
-    nombre: data.nombre,
-    ubicacion: data.ubicacion,
-    id_centro_formacion: data.id_centro_formacion || data.idCentroFormacion || data.idCentro, // puedes usar idCentro de frontend
-  };
-  const response = await axios.post(BASE_URL, payload);
-  return response.data;
+/** Crear sede */
+export const createSede = async (payload: any) => {
+  try {
+    const body = {
+      nombre: payload.nombre,
+      ubicacion: payload.ubicacion,
+      id_centro_formacion:
+        payload.id_centro_formacion ||
+        payload.idCentroFormacion ||
+        payload.idCentro,
+    };
+    const { data } = await api.post("/sedes", body);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al crear sede:", error);
+    throw new Error("Error al crear sede");
+  }
 };
 
-export const updateSede = async (id: number, data: any) => {
-  const payload = {
-    nombre: data.nombre,
-    ubicacion: data.ubicacion,
-    id_centro_formacion: data.id_centro_formacion || data.idCentroFormacion || data.idCentro,
-  };
-  const response = await axios.put(`${BASE_URL}/${id}`, payload);
-  return response.data;
+/** Actualizar sede */
+export const updateSede = async (id: number, payload: any) => {
+  try {
+    const body = {
+      nombre: payload.nombre,
+      ubicacion: payload.ubicacion,
+      id_centro_formacion:
+        payload.id_centro_formacion ||
+        payload.idCentroFormacion ||
+        payload.idCentro,
+    };
+    const { data } = await api.put(`/sedes/${id}`, body);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al actualizar sede:", error);
+    throw new Error("Error al actualizar sede");
+  }
 };
 
+/** Eliminar sede */
 export const deleteSede = async (id: number) => {
-  const response = await axios.delete(`${BASE_URL}/${id}`);
-  return response.data;
+  try {
+    await api.delete(`/sedes/${id}`);
+    return true;
+  } catch (error) {
+    console.error("❌ Error al eliminar sede:", error);
+    throw new Error("Error al eliminar sede");
+  }
 };

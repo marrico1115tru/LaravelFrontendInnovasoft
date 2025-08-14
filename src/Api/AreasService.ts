@@ -1,37 +1,41 @@
-const API_URL = "http://127.0.0.1:8000/api/areas";
+import api from "@/Api/api";
 
-export async function getAreas() {
-  const response = await fetch(API_URL);
-  if (!response.ok) throw new Error("Error al listar áreas");
-  const res = await response.json();
-  return Array.isArray(res) ? res : res.data;
-}
+export const getAreas = async () => {
+  try {
+    const { data } = await api.get("/areas");
+    return Array.isArray(data) ? data : data.data;
+  } catch (error) {
+    console.error("❌ Error al listar áreas:", error);
+    throw new Error("Error al listar áreas");
+  }
+};
 
-export async function createArea(payload: any) {
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    // No agregar credentials porque no usas autenticación
-  });
-  if (!response.ok) throw new Error("Error al crear área");
-  return await response.json();
-}
+export const createArea = async (payload: any) => {
+  try {
+    const { data } = await api.post("/areas", payload);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al crear área:", error);
+    throw new Error("Error al crear área");
+  }
+};
 
-export async function updateArea(id: number, payload: any) {
-  const response = await fetch(`${API_URL}/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) throw new Error("Error al actualizar área");
-  return await response.json();
-}
+export const updateArea = async (id: number, payload: any) => {
+  try {
+    const { data } = await api.put(`/areas/${id}`, payload);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al actualizar área:", error);
+    throw new Error("Error al actualizar área");
+  }
+};
 
-export async function deleteArea(id: number) {
-  const response = await fetch(`${API_URL}/${id}`, {
-    method: "DELETE",
-  });
-  if (!response.ok) throw new Error("Error al eliminar área");
-  return true;
-}
+export const deleteArea = async (id: number) => {
+  try {
+    await api.delete(`/areas/${id}`);
+    return true;
+  } catch (error) {
+    console.error("❌ Error al eliminar área:", error);
+    throw new Error("Error al eliminar área");
+  }
+};

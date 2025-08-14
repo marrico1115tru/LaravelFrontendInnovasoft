@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import axios from "axios";
 import { useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { Button } from "@/components/ui/button";
 import DefaultLayout from "@/layouts/default";
 import Modal from "@/components/ui/Modal";
+import api from "@/Api/api"; 
 
 interface UsuariosPorRolResponse {
   labels: string[];
@@ -16,15 +16,14 @@ export default function UsuariosPorRolCantidad() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  // Consulta con React Query
+  // Consulta con React Query usando instancia de API
   const { data, isLoading, error } = useQuery<UsuariosPorRolResponse>({
     queryKey: ["usuarios-por-rol"],
     queryFn: async () => {
-      const res = await axios.get(
-        "http://127.0.0.1:8000/api/estadisticas/usuarios-por-rol",
-        { withCredentials: true }
-      );
-      return res.data;
+      const { data } = await api.get("/estadisticas/usuarios-por-rol", {
+        withCredentials: true, // Enviar cookies automáticamente
+      });
+      return data;
     },
   });
 
@@ -71,7 +70,6 @@ export default function UsuariosPorRolCantidad() {
       </p>
     );
 
-  // Construir arreglo con objetos para facilitar renderizado
   const usuariosPorRol = data.labels.map((rol, i) => ({
     nombreRol: rol,
     cantidad: data.data[i],

@@ -1,39 +1,60 @@
 // src/Api/SitioService.ts
-import axios from 'axios';
+import api from "@/Api/api";
 
-const API_URL = 'http://127.0.0.1:8000/api/sitios';
-
+/** Obtener lista de sitios */
 export const getSitios = async () => {
-  const res = await axios.get(API_URL);
-  return res.data; // Debe traer area y tipo_sitio como objetos completos si el backend está bien.
+  try {
+    const { data } = await api.get("/sitios");
+    return data; // Debe traer area y tipo_sitio como objetos completos
+  } catch (error) {
+    console.error("❌ Error al obtener sitios:", error);
+    throw new Error("Error al obtener sitios");
+  }
 };
 
-export const createSitio = async (data: any) => {
-  // Espera data con { nombre, ubicacion, estado, id_area, id_tipo_sitio }
-  const payload = {
-    nombre: data.nombre,
-    ubicacion: data.ubicacion,
-    estado: data.estado,
-    id_area: data.id_area,
-    id_tipo_sitio: data.id_tipo_sitio,
-  };
-  const res = await axios.post(API_URL, payload);
-  return res.data;
+/** Crear sitio */
+export const createSitio = async (payload: any) => {
+  try {
+    const body = {
+      nombre: payload.nombre,
+      ubicacion: payload.ubicacion,
+      estado: payload.estado,
+      id_area: payload.id_area,
+      id_tipo_sitio: payload.id_tipo_sitio,
+    };
+    const { data } = await api.post("/sitios", body);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al crear sitio:", error);
+    throw new Error("Error al crear sitio");
+  }
 };
 
-export const updateSitio = async (id: number, data: any) => {
-  const payload = {
-    nombre: data.nombre,
-    ubicacion: data.ubicacion,
-    estado: data.estado,
-    id_area: data.id_area,
-    id_tipo_sitio: data.id_tipo_sitio,
-  };
-  const res = await axios.put(`${API_URL}/${id}`, payload);
-  return res.data;
+/** Actualizar sitio */
+export const updateSitio = async (id: number, payload: any) => {
+  try {
+    const body = {
+      nombre: payload.nombre,
+      ubicacion: payload.ubicacion,
+      estado: payload.estado,
+      id_area: payload.id_area,
+      id_tipo_sitio: payload.id_tipo_sitio,
+    };
+    const { data } = await api.put(`/sitios/${id}`, body);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al actualizar sitio:", error);
+    throw new Error("Error al actualizar sitio");
+  }
 };
 
+/** Eliminar sitio */
 export const deleteSitio = async (id: number) => {
-  const res = await axios.delete(`${API_URL}/${id}`);
-  return res.data;
+  try {
+    await api.delete(`/sitios/${id}`);
+    return true;
+  } catch (error) {
+    console.error("❌ Error al eliminar sitio:", error);
+    throw new Error("Error al eliminar sitio");
+  }
 };

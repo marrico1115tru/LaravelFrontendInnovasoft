@@ -22,6 +22,8 @@ export interface UsuarioResponsable {
 }
 
 export interface EntregaMaterial {
+  responsable: null;
+  ficha: null;
   id?: number;
   fechaEntrega: string;
   observaciones?: string | null;

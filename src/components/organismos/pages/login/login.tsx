@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FaUser, FaLock } from "react-icons/fa";
+import { login } from "@/Api/auth/login";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -12,12 +13,18 @@ const Login = () => {
 
   const handleLogin = async () => {
     setError("");
+    try {
+      const response = await login(email.trim(), password.trim());
+      console.log("✅ Usuario logueado:", response);
 
-    // Simulación básica sin API
-    if (email.trim() === "admin@sena.edu.co" && password.trim() === "123456") {
-      navigate("/Home"); // Redirige si las credenciales son correctas
-    } else {
-      setError("Credenciales inválidas");
+      navigate("/Home");
+    } catch (err: any) {
+      console.error("❌ Error de autenticación:", err);
+      if (err.response?.status === 401) {
+        setError("Credenciales inválidas");
+      } else {
+        setError("Error al conectar con el servidor");
+      }
     }
   };
 

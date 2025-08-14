@@ -1,23 +1,24 @@
+// src/types.ts
+export interface Solicitud {
+  id: number;
+  nombre?: string;
+  fecha?: string;
+}
+
 export interface Producto {
   id: number;
   nombre: string;
 }
 
-export interface SolicitudRef {
-  id: number;
-}
-
 export interface DetalleSolicitud {
-  id?: number;
-  cantidadSolicitada: number;
-  observaciones?: string | null;
-  idProducto: Producto;
-  idSolicitud: SolicitudRef;
-}
+  id: number;
+  id_solicitud: number;
+  id_producto: number;
+  cantidad_solicitada: number;
+  observaciones?: string;
+  created_at: string;
+  updated_at: string;
 
-export interface DetalleSolicitudPayload {
-  cantidadSolicitada: number;
-  observaciones?: string | null;
-  idProducto: { id: number };
-  idSolicitud: { id: number };
+  solicitud: Solicitud;
+  producto: Producto;
 }

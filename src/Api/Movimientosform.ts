@@ -1,29 +1,61 @@
-import axios from 'axios';
-import type { Movimiento, MovimientoPayload } from '@/types/types/movimientoInventario';
+import api from "@/Api/api";
+import type {
+  Movimiento,
+  CreateMovimientoData,
+  UpdateMovimientoData,
+} from "@/types/types/movimientos";
 
-const API_URL = 'http://127.0.0.1:8000/api/movimientos';
-const config = { withCredentials: true };
-
-/** Obtener movimientos */
 export const getMovimientos = async (): Promise<Movimiento[]> => {
-  const res = await axios.get(API_URL, config);
-  return res.data;
+  try {
+    const { data } = await api.get("/movimientos");
+    return Array.isArray(data) ? data : data.data;
+  } catch (error) {
+    console.error("❌ Error al listar movimientos:", error);
+    throw new Error("Error al listar movimientos");
+  }
 };
 
-/** Crear movimiento */
-export const createMovimiento = async (data: MovimientoPayload): Promise<Movimiento> => {
-  // Enviar data con campos en snake_case y todos obligatorios.
-  const res = await axios.post(API_URL, data, config);
-  return res.data;
+export const getMovimientoById = async (id: number): Promise<Movimiento> => {
+  try {
+    const { data } = await api.get(`/movimientos/${id}`);
+    return data;
+  } catch (error) {
+    console.error(`❌ Error al obtener movimiento con ID ${id}:`, error);
+    throw new Error(`Error al obtener movimiento con ID ${id}`);
+  }
 };
 
-/** Actualizar movimiento */
-export const updateMovimiento = async (id: number, data: MovimientoPayload): Promise<Movimiento> => {
-  const res = await axios.put(`${API_URL}/${id}`, data, config);
-  return res.data;
+export const createMovimiento = async (
+  payload: CreateMovimientoData
+): Promise<Movimiento> => {
+  try {
+    const { data } = await api.post("/movimientos", payload);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al crear movimiento:", error);
+    throw new Error("Error al crear movimiento");
+  }
 };
 
-/** Eliminar movimiento */
-export const deleteMovimiento = async (id: number): Promise<void> => {
-  await axios.delete(`${API_URL}/${id}`, config);
+export const updateMovimiento = async (
+  id: number,
+  payload: UpdateMovimientoData
+): Promise<Movimiento> => {
+  try {
+    const { data } = await api.put(`/movimientos/${id}`, payload);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al actualizar movimiento:", error);
+    throw new Error("Error al actualizar movimiento");
+  }
+};
+
+export const deleteMovimiento = async (id: number): Promise<boolean> => {
+  try {
+    await api.delete(`/movimientos/${id}`);
+    return true;
+  } catch (error) {
+    console.error("❌ Error al eliminar movimiento:", error);
+    throw new Error("Error al eliminar movimiento");
+  }
 };

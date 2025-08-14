@@ -8,6 +8,6 @@ const API = axios.create({
   },
 });
 
-export const logout = () => {
-  return API.post("/logout");
+export const getPerfil = () => {
+  return API.get("/perfil");
 };

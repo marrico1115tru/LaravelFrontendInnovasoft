@@ -1,43 +1,46 @@
 // src/Api/MunicipiosForm.ts
+import api from "@/Api/api";
 
-const API_URL = "http://127.0.0.1:8000/api/municipios";
+/** Obtener todos los municipios */
+export const obtenerMunicipios = async (): Promise<any[]> => {
+  try {
+    const { data } = await api.get("/municipios");
+    return Array.isArray(data) ? data : data.data;
+  } catch (error) {
+    console.error("❌ Error al obtener municipios:", error);
+    throw new Error("Error al obtener municipios");
+  }
+};
 
-// Obtener todos los municipios
-export async function obtenerMunicipios(): Promise<any[]> {
-  const response = await fetch(API_URL);
-  if (!response.ok) throw new Error("Error al obtener municipios");
-  const res = await response.json();
-  // Laravel podría devolver array o { data: [] }
-  return Array.isArray(res) ? res : res.data;
-}
+/** Crear municipio */
+export const crearMunicipio = async (payload: { nombre: string; departamento: string }) => {
+  try {
+    const { data } = await api.post("/municipios", payload);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al crear municipio:", error);
+    throw new Error("Error al crear municipio");
+  }
+};
 
-// Crear municipio
-export async function crearMunicipio(payload: { nombre: string; departamento: string }) {
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) throw new Error("Error al crear municipio");
-  return await response.json();
-}
+/** Actualizar municipio */
+export const actualizarMunicipio = async (id: number, payload: { nombre: string; departamento: string }) => {
+  try {
+    const { data } = await api.put(`/municipios/${id}`, payload);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al actualizar municipio:", error);
+    throw new Error("Error al actualizar municipio");
+  }
+};
 
-// Actualizar municipio
-export async function actualizarMunicipio(id: number, payload: { nombre: string; departamento: string }) {
-  const response = await fetch(`${API_URL}/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) throw new Error("Error al actualizar municipio");
-  return await response.json();
-}
-
-// Eliminar municipio
-export async function eliminarMunicipio(id: number) {
-  const response = await fetch(`${API_URL}/${id}`, {
-    method: "DELETE",
-  });
-  if (!response.ok) throw new Error("Error al eliminar municipio");
-  return true;
-}
+/** Eliminar municipio */
+export const eliminarMunicipio = async (id: number) => {
+  try {
+    await api.delete(`/municipios/${id}`);
+    return true;
+  } catch (error) {
+    console.error("❌ Error al eliminar municipio:", error);
+    throw new Error("Error al eliminar municipio");
+  }
+};

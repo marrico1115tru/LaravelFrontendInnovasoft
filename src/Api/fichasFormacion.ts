@@ -1,41 +1,68 @@
-import axios from 'axios';
 
-const API_URL = 'http://127.0.0.1:8000/api/fichas-formacion';
+import api from "@/Api/api";
 
-const config = {
-  withCredentials: true,
+export interface FichaFormacion {
+  id: number;
+  nombre: string;
+  id_titulado: number;
+  id_usuario_responsable?: number | null;
+}
+
+
+export const getFichasFormacion = async (): Promise<FichaFormacion[]> => {
+  try {
+    const { data } = await api.get("/fichas-formacion");
+    return Array.isArray(data) ? data : data.data;
+  } catch (error) {
+    console.error("❌ Error al obtener fichas de formación:", error);
+    throw new Error("Error al obtener fichas de formación");
+  }
 };
 
-// Obtener todas las fichas con relaciones incluidas (titulado, usuario_responsable, etc)
-export const getFichasFormacion = async () => {
-  const res = await axios.get(API_URL, config);
-  return res.data;
+
+export const createFichaFormacion = async (
+  payload: Omit<FichaFormacion, "id">
+): Promise<FichaFormacion> => {
+  try {
+    const body = {
+      nombre: payload.nombre,
+      id_titulado: payload.id_titulado,
+      id_usuario_responsable: payload.id_usuario_responsable ?? null,
+    };
+    const { data } = await api.post("/fichas-formacion", body);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al crear ficha de formación:", error);
+    throw new Error("Error al crear ficha de formación");
+  }
 };
 
-// Crear ficha enviando solo los IDs planos
-export const createFichaFormacion = async (data: any) => {
-  const payload = {
-    nombre: data.nombre,
-    id_titulado: data.id_titulado,
-    id_usuario_responsable: data.id_usuario_responsable || null,
-  };
-  const res = await axios.post(API_URL, payload, config);
-  return res.data;
+
+export const updateFichaFormacion = async (
+  id: number,
+  payload: Partial<Omit<FichaFormacion, "id">>
+): Promise<FichaFormacion> => {
+  try {
+    const body = {
+      nombre: payload.nombre,
+      id_titulado: payload.id_titulado,
+      id_usuario_responsable: payload.id_usuario_responsable ?? null,
+    };
+    const { data } = await api.put(`/fichas-formacion/${id}`, body);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al actualizar ficha de formación:", error);
+    throw new Error("Error al actualizar ficha de formación");
+  }
 };
 
-// Actualizar ficha
-export const updateFichaFormacion = async (id: number, data: any) => {
-  const payload = {
-    nombre: data.nombre,
-    id_titulado: data.id_titulado,
-    id_usuario_responsable: data.id_usuario_responsable || null,
-  };
-  const res = await axios.put(`${API_URL}/${id}`, payload, config);
-  return res.data;
-};
 
-// Eliminar ficha
-export const deleteFichaFormacion = async (id: number) => {
-  const res = await axios.delete(`${API_URL}/${id}`, config);
-  return res.data;
+export const deleteFichaFormacion = async (id: number): Promise<boolean> => {
+  try {
+    await api.delete(`/fichas-formacion/${id}`);
+    return true;
+  } catch (error) {
+    console.error("❌ Error al eliminar ficha de formación:", error);
+    throw new Error("Error al eliminar ficha de formación");
+  }
 };

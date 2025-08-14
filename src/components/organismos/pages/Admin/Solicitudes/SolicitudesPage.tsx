@@ -52,8 +52,6 @@ const columns = [
   { name: 'Fecha', uid: 'fecha', sortable: true },
   { name: 'Estado', uid: 'estado', sortable: false },
   { name: 'Solicitante', uid: 'solicitante', sortable: false },
-  { name: '# Detalles', uid: 'detalles', sortable: false },
-  { name: '# Entregas', uid: 'entregas', sortable: false },
   { name: 'Acciones', uid: 'actions' },
 ];
 
@@ -62,8 +60,6 @@ const INITIAL_VISIBLE_COLUMNS = [
   'fecha',
   'estado',
   'solicitante',
-  'detalles',
-  'entregas',
   'actions',
 ];
 
@@ -232,10 +228,6 @@ export default function SolicitudesPage() {
           </span>
         );
       }
-      case 'detalles':
-        return <span className="text-sm text-gray-600">{item.detalleSolicituds?.length || 0}</span>;
-      case 'entregas':
-        return <span className="text-sm text-gray-600">{item.entregaMaterials?.length || 0}</span>;
       case 'actions':
         return (
           <Dropdown>
@@ -423,8 +415,6 @@ export default function SolicitudesPage() {
                       return usuario ? `${usuario.nombre} ${usuario.apellido || ''}` : '—';
                     })()}
                   </p>
-                  <p className="text-sm text-gray-600"><span className="font-medium">Detalles:</span> {s.detalleSolicituds?.length || 0}</p>
-                  <p className="text-sm text-gray-600"><span className="font-medium">Entregas:</span> {s.entregaMaterials?.length || 0}</p>
                   <p className="text-xs text-gray-400">ID: {s.id}</p>
                 </CardContent>
               </Card>

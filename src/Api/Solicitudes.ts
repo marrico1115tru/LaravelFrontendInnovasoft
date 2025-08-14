@@ -1,48 +1,47 @@
-// @/Api/Solicitudes.ts
-
-import type { Solicitud, SolicitudPayload } from '@/types/types/Solicitud';
-
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+// src/Api/Solicitudes.ts
+import api from "@/Api/api";
+import type { Solicitud, SolicitudPayload } from "@/types/types/Solicitud";
 
 /** Obtener lista de solicitudes */
-export async function getSolicitudes(): Promise<Solicitud[]> {
-  const res = await fetch(`${API_BASE_URL}/solicitudes`);
-  if (!res.ok) throw new Error('Error al obtener solicitudes');
-  return res.json();
-}
+export const getSolicitudes = async (): Promise<Solicitud[]> => {
+  try {
+    const { data } = await api.get("/solicitudes");
+    return data;
+  } catch (error) {
+    console.error("❌ Error al obtener solicitudes:", error);
+    throw new Error("Error al obtener solicitudes");
+  }
+};
 
 /** Crear solicitud */
-export async function createSolicitud(payload: SolicitudPayload): Promise<Solicitud> {
-  const res = await fetch(`${API_BASE_URL}/solicitudes`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload), // El payload debe usar { fecha_solicitud, estado_solicitud, id_usuario_solicitante }
-  });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.message || 'Error al crear solicitud');
+export const createSolicitud = async (payload: SolicitudPayload): Promise<Solicitud> => {
+  try {
+    const { data } = await api.post("/solicitudes", payload);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al crear solicitud:", error);
+    throw new Error("Error al crear solicitud");
   }
-  return res.json();
-}
+};
 
 /** Actualizar solicitud */
-export async function updateSolicitud(id: number, payload: SolicitudPayload): Promise<Solicitud> {
-  const res = await fetch(`${API_BASE_URL}/solicitudes/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.message || 'Error al actualizar solicitud');
+export const updateSolicitud = async (id: number, payload: SolicitudPayload): Promise<Solicitud> => {
+  try {
+    const { data } = await api.put(`/solicitudes/${id}`, payload);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al actualizar solicitud:", error);
+    throw new Error("Error al actualizar solicitud");
   }
-  return res.json();
-}
+};
 
 /** Eliminar solicitud */
-export async function deleteSolicitud(id: number): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/solicitudes/${id}`, {
-    method: 'DELETE',
-  });
-  if (!res.ok) throw new Error('Error al eliminar solicitud');
-}
+export const deleteSolicitud = async (id: number): Promise<boolean> => {
+  try {
+    await api.delete(`/solicitudes/${id}`);
+    return true;
+  } catch (error) {
+    console.error("❌ Error al eliminar solicitud:", error);
+    throw new Error("Error al eliminar solicitud");
+  }
+};

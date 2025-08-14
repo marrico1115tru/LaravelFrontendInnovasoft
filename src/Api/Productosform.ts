@@ -1,44 +1,62 @@
-import axios from "axios";
+// src/Api/productos.ts
+import api from "@/Api/api";
 
-const API_URL = "http://127.0.0.1:8000/api/productos";
-
-const config = {
-  withCredentials: true,
-};
-
+/** Obtener lista de productos */
 export const getProductos = async () => {
-  const res = await axios.get(API_URL, config);
-  // Aquí mapeamos para agregar fechaVencimiento y asegurar idCategoria como objeto
-  return res.data.map((item: any) => ({
-    ...item,
-    fechaVencimiento: item.fecha_vencimiento, // mapeo fecha
-    idCategoria: item.idCategoria || null, // espera que backend incluya relación
-  }));
+  try {
+    const { data } = await api.get("/productos");
+    return data.map((item: any) => ({
+      ...item,
+      fechaVencimiento: item.fecha_vencimiento,
+      idCategoria: item.idCategoria || null,
+    }));
+  } catch (error) {
+    console.error("❌ Error al obtener productos:", error);
+    throw new Error("Error al obtener productos");
+  }
 };
 
-export const createProducto = async (data: any) => {
-  const payload = {
-    nombre: data.nombre,
-    descripcion: data.descripcion || null,
-    fecha_vencimiento: data.fechaVencimiento || null,
-    id_categoria: data.idCategoriaId,
-  };
-  const res = await axios.post(API_URL, payload, config);
-  return res.data;
+/** Crear producto */
+export const createProducto = async (payload: any) => {
+  try {
+    const body = {
+      nombre: payload.nombre,
+      descripcion: payload.descripcion || null,
+      fecha_vencimiento: payload.fechaVencimiento || null,
+      id_categoria: payload.idCategoriaId,
+    };
+    const { data } = await api.post("/productos", body);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al crear producto:", error);
+    throw new Error("Error al crear producto");
+  }
 };
 
-export const updateProducto = async (id: number, data: any) => {
-  const payload = {
-    nombre: data.nombre,
-    descripcion: data.descripcion || null,
-    fecha_vencimiento: data.fechaVencimiento || null,
-    id_categoria: data.idCategoriaId,
-  };
-  const res = await axios.put(`${API_URL}/${id}`, payload, config);
-  return res.data;
+/** Actualizar producto */
+export const updateProducto = async (id: number, payload: any) => {
+  try {
+    const body = {
+      nombre: payload.nombre,
+      descripcion: payload.descripcion || null,
+      fecha_vencimiento: payload.fechaVencimiento || null,
+      id_categoria: payload.idCategoriaId,
+    };
+    const { data } = await api.put(`/productos/${id}`, body);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al actualizar producto:", error);
+    throw new Error("Error al actualizar producto");
+  }
 };
 
+/** Eliminar producto */
 export const deleteProducto = async (id: number) => {
-  const res = await axios.delete(`${API_URL}/${id}`, config);
-  return res.data;
+  try {
+    await api.delete(`/productos/${id}`);
+    return true;
+  } catch (error) {
+    console.error("❌ Error al eliminar producto:", error);
+    throw new Error("Error al eliminar producto");
+  }
 };

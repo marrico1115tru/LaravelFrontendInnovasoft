@@ -1,40 +1,44 @@
-import axios from 'axios';
+import api from "@/Api/api"; 
 
-const API_URL = 'http://127.0.0.1:8000/api/categoria-productos';
 
-// Configuración (ej. para enviar cookies si usas sesión)
-const config = {
-  withCredentials: true,
-};
-
-// Obtener todas las categorías con sus productos (si el backend los incluye en la respuesta)
 export const getCategoriasProductos = async () => {
-  const res = await axios.get(API_URL, config);
-  return res.data;
+  try {
+    const { data } = await api.get("/categoria-productos");
+    return data;
+  } catch (error) {
+    console.error("❌ Error al listar categorías de productos:", error);
+    throw new Error("Error al listar categorías de productos");
+  }
 };
 
-// Crear nueva categoría enviando nombre y unpsc
-export const createCategoriaProducto = async (data: { nombre: string; unpsc?: string }) => {
-  const payload = {
-    nombre: data.nombre,
-    unpsc: data.unpsc || undefined,
-  };
-  const res = await axios.post(API_URL, payload, config);
-  return res.data;
+export const createCategoriaProducto = async (payload: { nombre: string; unpsc?: string }) => {
+  try {
+    const { data } = await api.post("/categoria-productos", payload);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al crear categoría de producto:", error);
+    throw new Error("Error al crear categoría de producto");
+  }
 };
 
-// Actualizar categoría existente
-export const updateCategoriaProducto = async (id: number, data: { nombre: string; unpsc?: string }) => {
-  const payload = {
-    nombre: data.nombre,
-    unpsc: data.unpsc || undefined,
-  };
-  const res = await axios.put(`${API_URL}/${id}`, payload, config);
-  return res.data;
+
+export const updateCategoriaProducto = async (id: number, payload: { nombre: string; unpsc?: string }) => {
+  try {
+    const { data } = await api.put(`/categoria-productos/${id}`, payload);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al actualizar categoría de producto:", error);
+    throw new Error("Error al actualizar categoría de producto");
+  }
 };
 
-// Eliminar categoría por ID
+
 export const deleteCategoriaProducto = async (id: number) => {
-  const res = await axios.delete(`${API_URL}/${id}`, config);
-  return res.data;
+  try {
+    const { data } = await api.delete(`/categoria-productos/${id}`);
+    return data;
+  } catch (error) {
+    console.error("❌ Error al eliminar categoría de producto:", error);
+    throw new Error("Error al eliminar categoría de producto");
+  }
 };
