@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Cookies from 'js-cookie';
 import {
   Table,
   TableHeader,
@@ -21,29 +22,27 @@ import {
   Checkbox,
   useDisclosure,
   type SortDescriptor,
+  Spinner,
 } from '@heroui/react';
-
 import {
   obtenerMunicipios,
   crearMunicipio,
   actualizarMunicipio,
   eliminarMunicipio,
 } from '@/Api/MunicipiosForm';
-
 import DefaultLayout from '@/layouts/default';
-
 import {
   PlusIcon,
   MoreVertical,
   Search as SearchIcon,
   Pencil,
   Trash,
+  Lock,
 } from 'lucide-react';
-
 import { Card, CardContent } from '@/components/ui/card';
-
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
+import api from '@/Api/api';
 
 const MySwal = withReactContent(Swal);
 
@@ -54,7 +53,26 @@ const columns = [
   { name: 'Centros', uid: 'centros', sortable: false },
   { name: 'Acciones', uid: 'actions', sortable: false },
 ];
+
 const INITIAL_VISIBLE_COLUMNS = ['id', 'nombre', 'departamento', 'centros', 'actions'];
+
+// Función para obtener permisos del backend por ruta y rol
+const fetchPermisos = async (ruta: string, idRol: number) => {
+  try {
+    const { data } = await api.get('/por-ruta-rol/permisos', {
+      params: { ruta, idRol },
+    });
+    return data.permisos;
+  } catch (error) {
+    console.error('Error al obtener permisos:', error);
+    return {
+      puede_ver: false,
+      puede_crear: false,
+      puede_editar: false,
+      puede_eliminar: false,
+    };
+  }
+};
 
 const MunicipiosPage = () => {
   const [municipios, setMunicipios] = useState<any[]>([]);
@@ -73,7 +91,46 @@ const MunicipiosPage = () => {
 
   const { isOpen, onOpenChange, onOpen, onClose } = useDisclosure();
 
-  // Cargar municipios
+  // Nuevos estados para permisos, carga y error
+  const [permisos, setPermisos] = useState({
+    puede_ver: false,
+    puede_crear: false,
+    puede_editar: false,
+    puede_eliminar: false,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Carga inicial para permisos y datos (solo si puede ver)
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        const userCookie = Cookies.get('user');
+        if (!userCookie) throw new Error('No se encontró la sesión del usuario. Por favor, inicie sesión de nuevo.');
+        const user = JSON.parse(userCookie);
+        const idRol = user?.id_rol;
+        if (!idRol) throw new Error('El usuario no tiene un rol válido asignado.');
+
+        const rutaActual = '/MunicipioPage';
+        const fetchedPermisos = await fetchPermisos(rutaActual, idRol);
+        setPermisos(fetchedPermisos);
+
+        if (fetchedPermisos.puede_ver) {
+          await cargarMunicipios();
+        } else {
+          setError('No tienes permiso para ver este módulo.');
+        }
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initialize();
+  }, []);
+
+  // Función para cargar municipios
   const cargarMunicipios = async () => {
     try {
       const data = await obtenerMunicipios();
@@ -83,10 +140,6 @@ const MunicipiosPage = () => {
       await MySwal.fire('Error', 'No se pudo cargar los municipios', 'error');
     }
   };
-
-  useEffect(() => {
-    cargarMunicipios();
-  }, []);
 
   // Eliminar municipio
   const eliminar = async (id: number) => {
@@ -122,7 +175,7 @@ const MunicipiosPage = () => {
     }
     const payload = { nombre: nombre.trim(), departamento: departamento.trim() };
     try {
-      if (editId) {
+      if (editId !== null) {
         await actualizarMunicipio(editId, payload);
         await MySwal.fire('Actualizado', 'Municipio actualizado', 'success');
       } else {
@@ -153,7 +206,7 @@ const MunicipiosPage = () => {
     setDepartamento('');
   };
 
-  // Filtro por nombre y departamento
+  // Filtrar por nombre y departamento
   const filtered = useMemo(() => {
     if (!filterValue) return municipios;
     return municipios.filter((m) =>
@@ -168,7 +221,7 @@ const MunicipiosPage = () => {
     return filtered.slice(start, start + rowsPerPage);
   }, [filtered, page, rowsPerPage]);
 
-  // Ordenar datos tabla
+  // Ordenar datos de tabla
   const sorted = useMemo(() => {
     const items = [...sliced];
     const { column, direction } = sortDescriptor;
@@ -181,7 +234,7 @@ const MunicipiosPage = () => {
     return items;
   }, [sliced, sortDescriptor]);
 
-  // Renderizado de celdas
+  // Renderizado de celdas con control de permisos sobre acciones
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
       case 'nombre':
@@ -195,6 +248,7 @@ const MunicipiosPage = () => {
       case 'centros':
         return <span className="text-sm text-gray-600">{item.centroFormacions?.length || 0}</span>;
       case 'actions':
+        if (!permisos.puede_editar && !permisos.puede_eliminar) return null;
         return (
           <Dropdown>
             <DropdownTrigger>
@@ -209,15 +263,21 @@ const MunicipiosPage = () => {
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              <DropdownItem onPress={() => abrirModalEditar(item)} startContent={<Pencil size={16} />} key={''}>
-                Editar
-              </DropdownItem>
-              <DropdownItem
-                onPress={() => eliminar(item.id)}
-                startContent={<Trash size={16} />}
-                className="text-danger" key={''}              >
-                Eliminar
-              </DropdownItem>
+              {permisos.puede_editar ? (
+                <DropdownItem onPress={() => abrirModalEditar(item)} startContent={<Pencil size={16} />} key={`editar-${item.id}`}>
+                  Editar
+                </DropdownItem>
+              ) : null}
+              {permisos.puede_eliminar ? (
+                <DropdownItem
+                  onPress={() => eliminar(item.id)}
+                  startContent={<Trash size={16} />}
+                  className="text-danger"
+                  key={`eliminar-${item.id}`}
+                >
+                  Eliminar
+                </DropdownItem>
+              ) : null}
             </DropdownMenu>
           </Dropdown>
         );
@@ -226,7 +286,7 @@ const MunicipiosPage = () => {
     }
   };
 
-  // Alternar columnas visibles
+  // Toggle columnas visibles
   const toggleColumn = (key: string) => {
     setVisibleColumns((prev) => {
       const copy = new Set(prev);
@@ -236,7 +296,7 @@ const MunicipiosPage = () => {
     });
   };
 
-  // Contenido top tabla (filtro, botones)
+  // Contenido superior (búsqueda, botones, columnas)
   const topContent = (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
@@ -273,16 +333,18 @@ const MunicipiosPage = () => {
                 ))}
             </DropdownMenu>
           </Dropdown>
-          <Button
-            className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
-            endContent={<PlusIcon />}
-            onPress={() => {
-              limpiarForm();
-              onOpen();
-            }}
-          >
-            Nuevo Municipio
-          </Button>
+          {permisos.puede_crear ? (
+            <Button
+              className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
+              endContent={<PlusIcon />}
+              onPress={() => {
+                limpiarForm();
+                onOpen();
+              }}
+            >
+              Nuevo Municipio
+            </Button>
+          ) : null}
         </div>
       </div>
       <div className="flex items-center justify-between">
@@ -308,7 +370,7 @@ const MunicipiosPage = () => {
     </div>
   );
 
-  // Contenido pie tabla (paginación)
+  // Contenido inferior (paginación)
   const bottomContent = (
     <div className="py-2 px-2 flex justify-center items-center gap-2">
       <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
@@ -320,6 +382,26 @@ const MunicipiosPage = () => {
       </Button>
     </div>
   );
+
+  if (loading)
+    return (
+      <DefaultLayout>
+        <div className="flex justify-center items-center h-full p-6">
+          <Spinner label="Cargando..." />
+        </div>
+      </DefaultLayout>
+    );
+
+  if (error || !permisos.puede_ver)
+    return (
+      <DefaultLayout>
+        <div className="p-6 text-center text-red-600 flex flex-col items-center gap-4">
+          <Lock size={48} />
+          <h1 className="text-2xl font-bold">Acceso Denegado</h1>
+          <p>{error || 'No tienes permiso para ver este módulo.'}</p>
+        </div>
+      </DefaultLayout>
+    );
 
   return (
     <DefaultLayout>
@@ -345,11 +427,7 @@ const MunicipiosPage = () => {
           >
             <TableHeader columns={columns.filter((c) => visibleColumns.has(c.uid))}>
               {(col) => (
-                <TableColumn
-                  key={col.uid}
-                  align={col.uid === 'actions' ? 'center' : 'start'}
-                  width={col.uid === 'nombre' ? 300 : undefined}
-                >
+                <TableColumn key={col.uid} align={col.uid === 'actions' ? 'center' : 'start'} width={col.uid === 'nombre' ? 300 : undefined}>
                   {col.name}
                 </TableColumn>
               )}
@@ -374,27 +452,27 @@ const MunicipiosPage = () => {
                 <CardContent className="space-y-2 p-4">
                   <div className="flex justify-between items-start">
                     <h3 className="font-semibold text-lg">{m.nombre}</h3>
-                    <Dropdown>
-                      <DropdownTrigger>
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="light"
-                          className="rounded-full text-[#0D1324]"
-                          aria-label="Acciones"
-                        >
-                          <MoreVertical />
-                        </Button>
-                      </DropdownTrigger>
-                      <DropdownMenu>
-                        <DropdownItem key={`editar-${m.id}`} onPress={() => abrirModalEditar(m)}>
-                          Editar
-                        </DropdownItem>
-                        <DropdownItem key={`eliminar-${m.id}`} onPress={() => eliminar(m.id)}>
-                          Eliminar
-                        </DropdownItem>
-                      </DropdownMenu>
-                    </Dropdown>
+                    {(permisos.puede_editar || permisos.puede_eliminar) && (
+                      <Dropdown>
+                        <DropdownTrigger>
+                          <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]" aria-label="Acciones">
+                            <MoreVertical />
+                          </Button>
+                        </DropdownTrigger>
+                        <DropdownMenu>
+                          {permisos.puede_editar ? (
+                            <DropdownItem key={`editar-${m.id}`} onPress={() => abrirModalEditar(m)}>
+                              Editar
+                            </DropdownItem>
+                          ) : null}
+                          {permisos.puede_eliminar ? (
+                            <DropdownItem key={`eliminar-${m.id}`} onPress={() => eliminar(m.id)}>
+                              Eliminar
+                            </DropdownItem>
+                          ) : null}
+                        </DropdownMenu>
+                      </Dropdown>
+                    )}
                   </div>
                   <p className="text-sm text-gray-600">
                     <span className="font-medium">Depto:</span> {m.departamento}
@@ -410,41 +488,18 @@ const MunicipiosPage = () => {
         </div>
 
         {/* Modal para crear/editar */}
-        <Modal
-          isOpen={isOpen}
-          onOpenChange={onOpenChange}
-          placement="center"
-          className="backdrop-blur-sm bg-black/30"
-          isDismissable
-        >
+        <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" className="backdrop-blur-sm bg-black/30" isDismissable>
           <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl max-w-lg w-full p-6">
             {(onCloseLocal) => (
               <>
                 <ModalHeader>{editId ? 'Editar Municipio' : 'Nuevo Municipio'}</ModalHeader>
                 <ModalBody className="space-y-4">
-                  <Input
-                    label="Nombre"
-                    placeholder="Ej: Neiva"
-                    value={nombre}
-                    onValueChange={setNombre}
-                    radius="sm"
-                    autoFocus
-                  />
-                  <Input
-                    label="Departamento"
-                    placeholder="Ej: Huila"
-                    value={departamento}
-                    onValueChange={setDepartamento}
-                    radius="sm"
-                  />
+                  <Input label="Nombre" placeholder="Ej: Neiva" value={nombre} onValueChange={setNombre} radius="sm" autoFocus />
+                  <Input label="Departamento" placeholder="Ej: Huila" value={departamento} onValueChange={setDepartamento} radius="sm" />
                 </ModalBody>
                 <ModalFooter className="flex justify-end gap-3">
-                  <Button variant="light" onPress={onCloseLocal}>
-                    Cancelar
-                  </Button>
-                  <Button color="primary" onPress={guardar}>
-                    {editId ? 'Actualizar' : 'Crear'}
-                  </Button>
+                  <Button variant="light" onPress={onCloseLocal}>Cancelar</Button>
+                  <Button color="primary" onPress={guardar}>{editId ? 'Actualizar' : 'Crear'}</Button>
                 </ModalFooter>
               </>
             )}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Cookies from 'js-cookie';
 import {
   Table,
   TableHeader,
@@ -22,6 +23,7 @@ import {
   SelectItem,
   useDisclosure,
   type SortDescriptor,
+  Spinner,
 } from '@heroui/react';
 
 import {
@@ -36,15 +38,14 @@ import { getFichasFormacion, createFichaFormacion } from '@/Api/fichasFormacion'
 import { getRoles, createRol } from '@/Api/RolService';
 
 import DefaultLayout from '@/layouts/default';
-import { PlusIcon, MoreVertical, Search as SearchIcon } from 'lucide-react';
+import { PlusIcon, MoreVertical, Search as SearchIcon, Lock } from 'lucide-react';
 
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
+import api from '@/Api/api'; // Asegúrate que api es tu axios configurado
 
-// Configuración para SweetAlert
 const MySwal = withReactContent(Swal);
 
-// Columnas de la tabla usuarios
 const columns = [
   { name: 'ID', uid: 'id', sortable: true },
   { name: 'Nombre', uid: 'nombreCompleto', sortable: false },
@@ -57,7 +58,6 @@ const columns = [
   { name: 'Acciones', uid: 'actions' },
 ];
 
-// Columnas visibles por defecto
 const INITIAL_VISIBLE_COLUMNS = [
   'id',
   'nombreCompleto',
@@ -70,15 +70,32 @@ const INITIAL_VISIBLE_COLUMNS = [
   'actions',
 ];
 
-// Componente principal
+// Función para obtener permisos desde el backend
+const fetchPermisos = async (ruta: string, idRol: number) => {
+  try {
+    const { data } = await api.get('/por-ruta-rol/permisos', {
+      params: { ruta, idRol },
+    });
+    return data.permisos;
+  } catch (error) {
+    console.error('Error al obtener permisos:', error);
+    return {
+      puede_ver: false,
+      puede_crear: false,
+      puede_editar: false,
+      puede_eliminar: false,
+    };
+  }
+};
+
 const UsuariosPage = () => {
-  // Estados para datos
+  // Estados datos
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [areas, setAreas] = useState<any[]>([]);
   const [fichas, setFichas] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
 
-  // Otros estados UI
+  // Estados UI
   const [filterValue, setFilterValue] = useState('');
   const [visibleColumns, setVisibleColumns] = useState(new Set(INITIAL_VISIBLE_COLUMNS));
   const [rowsPerPage, setRowsPerPage] = useState(5);
@@ -88,7 +105,6 @@ const UsuariosPage = () => {
     direction: 'ascending',
   });
 
-  // Control para modal usuario
   const {
     isOpen: userIsOpen,
     onOpen: userOnOpen,
@@ -96,12 +112,11 @@ const UsuariosPage = () => {
     onOpenChange: userOnOpenChange,
   } = useDisclosure();
 
-  // Control para modales de agregar Área, Ficha y Rol
   const areaModal = useDisclosure();
   const fichaModal = useDisclosure();
   const rolModal = useDisclosure();
 
-  // Estado formulario usuario, con keys en snake_case conforme backend
+  // Formulario usuario
   const [form, setForm] = useState({
     nombre: '',
     apellido: '',
@@ -114,20 +129,55 @@ const UsuariosPage = () => {
     id_rol: '',
   });
 
-  // Para editar: guarda ID usuario editando o null para nuevo
+  // Id de usuario que se edita (null si es nuevo)
   const [editId, setEditId] = useState<number | null>(null);
 
-  // Para crear nuevas área, ficha, rol
+  // Para crear nuevas Área, Ficha y Rol
   const [newAreaName, setNewAreaName] = useState('');
   const [newFichaName, setNewFichaName] = useState('');
   const [newRolName, setNewRolName] = useState('');
 
-  // Carga inicial de todos los datos
+  // Estados permisos y carga
+  const [permisos, setPermisos] = useState({
+    puede_ver: false,
+    puede_crear: false,
+    puede_editar: false,
+    puede_eliminar: false,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Carga inicial: permisos y datos
   useEffect(() => {
-    cargarDatos();
+    const initialize = async () => {
+      try {
+        const userCookie = Cookies.get('user');
+        if (!userCookie) throw new Error('No se encontró la sesión del usuario. Por favor, inicia sesión.');
+
+        const user = JSON.parse(userCookie);
+        const idRol = user?.id_rol;
+        if (!idRol) throw new Error('Usuario sin rol válido.');
+
+        const rutaActual = '/usuarios';
+        const fetchedPermisos = await fetchPermisos(rutaActual, idRol);
+        setPermisos(fetchedPermisos);
+
+        if (!fetchedPermisos.puede_ver) {
+          setError('No tienes permiso para ver este módulo.');
+          return;
+        }
+
+        await cargarDatos();
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    initialize();
   }, []);
 
-  // Función para cargar usuarios, áreas, fichas y roles
+  // Carga usuarios, áreas, fichas y roles
   const cargarDatos = async () => {
     try {
       const [usuariosApi, areasApi, fichasApi, rolesApi] = await Promise.all([
@@ -146,8 +196,10 @@ const UsuariosPage = () => {
     }
   };
 
-  // Función para eliminar usuario con confirmación
+  // Confirmar y eliminar usuario
   const eliminarUsuario = async (id: number) => {
+    if (!permisos.puede_eliminar) return;
+
     const result = await MySwal.fire({
       title: '¿Eliminar usuario?',
       text: 'Esta acción es irreversible.',
@@ -166,7 +218,7 @@ const UsuariosPage = () => {
     }
   };
 
-  // Guardar nuevo usuario o actualizar existente con validación básica
+  // Guardar usuario nuevo o editar existente con validación y control de permisos
   const guardarUsuario = async () => {
     if (!form.nombre.trim()) {
       await MySwal.fire('Atención', 'El campo Nombre es obligatorio', 'warning');
@@ -181,7 +233,6 @@ const UsuariosPage = () => {
       return;
     }
 
-    // Preparar datos a enviar
     const payload: any = {
       nombre: form.nombre,
       apellido: form.apellido || null,
@@ -199,9 +250,17 @@ const UsuariosPage = () => {
 
     try {
       if (editId) {
+        if (!permisos.puede_editar) {
+          await MySwal.fire('Acceso denegado', 'No tienes permiso para editar usuarios.', 'error');
+          return;
+        }
         await updateUsuario(editId, payload);
         await MySwal.fire('Éxito', 'Usuario actualizado correctamente', 'success');
       } else {
+        if (!permisos.puede_crear) {
+          await MySwal.fire('Acceso denegado', 'No tienes permiso para crear usuarios.', 'error');
+          return;
+        }
         await createUsuario(payload);
         await MySwal.fire('Éxito', 'Usuario creado correctamente', 'success');
       }
@@ -218,7 +277,7 @@ const UsuariosPage = () => {
     }
   };
 
-  // Limpiar formulario al cerrar
+  // Limpiar formulario y estado edición
   const limpiarFormulario = () => {
     setForm({
       nombre: '',
@@ -234,8 +293,12 @@ const UsuariosPage = () => {
     setEditId(null);
   };
 
-  // Abrir modal para editar usuario, cargando los datos existentes
+  // Abrir modal para editar usuario
   const abrirModalEditar = (usuario: any) => {
+    if (!permisos.puede_editar) {
+      MySwal.fire('Acceso denegado', 'No tienes permiso para editar usuarios.', 'error');
+      return;
+    }
     setEditId(usuario.id);
     setForm({
       nombre: usuario.nombre || '',
@@ -243,7 +306,7 @@ const UsuariosPage = () => {
       cedula: usuario.cedula || '',
       email: usuario.email || '',
       telefono: usuario.telefono || '',
-      password: '', // contraseña vacía porque no se muestra
+      password: '', // no mostrar contraseña
       id_area: usuario.area?.id?.toString() || usuario.id_area?.toString() || '',
       id_ficha: usuario.ficha?.id?.toString() || usuario.id_ficha?.toString() || '',
       id_rol: usuario.rol?.id?.toString() || usuario.id_rol?.toString() || '',
@@ -251,7 +314,7 @@ const UsuariosPage = () => {
     userOnOpen();
   };
 
-  // Filtrado local de usuarios por texto buscado
+  // Filtros, paginación, ordenamiento
   const usuariosFiltrados = useMemo(() => {
     if (!filterValue) return usuarios;
     return usuarios.filter((u) => {
@@ -260,16 +323,13 @@ const UsuariosPage = () => {
     });
   }, [usuarios, filterValue]);
 
-  // Calcular cantidad de páginas para paginación
   const totalPaginas = Math.max(Math.ceil(usuariosFiltrados.length / rowsPerPage), 1);
 
-  // Usuarios paginados
   const usuariosPaginados = useMemo(() => {
     const inicio = (page - 1) * rowsPerPage;
     return usuariosFiltrados.slice(inicio, inicio + rowsPerPage);
   }, [usuariosFiltrados, page, rowsPerPage]);
 
-  // Usuarios ordenados por sortDescriptor
   const usuariosOrdenados = useMemo(() => {
     const items = [...usuariosPaginados];
     const { column, direction } = sortDescriptor;
@@ -288,7 +348,7 @@ const UsuariosPage = () => {
     return items;
   }, [usuariosPaginados, sortDescriptor]);
 
-  // Renderizado de celdas según columna
+  // Renderizado celdas, respetando permisos para acciones
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
       case 'nombreCompleto':
@@ -304,6 +364,8 @@ const UsuariosPage = () => {
       case 'rol':
         return <span className="text-sm text-gray-600">{item.rol?.nombre_rol ?? '—'}</span>;
       case 'actions':
+        if (!permisos.puede_editar && !permisos.puede_eliminar) return null;
+
         return (
           <Dropdown>
             <DropdownTrigger>
@@ -318,12 +380,20 @@ const UsuariosPage = () => {
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              <DropdownItem key={`editar-${item.id}`} onPress={() => abrirModalEditar(item)}>
-                Editar
-              </DropdownItem>
-              <DropdownItem key={`eliminar-${item.id}`} onPress={() => eliminarUsuario(item.id)}>
-                Eliminar
-              </DropdownItem>
+              {permisos.puede_editar ? (
+                <DropdownItem key={`editar-${item.id}`} onPress={() => abrirModalEditar(item)}>
+                  Editar
+                </DropdownItem>
+              ) : null}
+              {permisos.puede_eliminar ? (
+                <DropdownItem
+                  key={`eliminar-${item.id}`}
+                  onPress={() => eliminarUsuario(item.id)}
+                  className="text-danger"
+                >
+                  Eliminar
+                </DropdownItem>
+              ) : null}
             </DropdownMenu>
           </Dropdown>
         );
@@ -332,7 +402,6 @@ const UsuariosPage = () => {
     }
   };
 
-  // Cambiar columnas visibles
   const toggleColumn = (key: string) => {
     setVisibleColumns((prev) => {
       const copia = new Set(prev);
@@ -343,8 +412,6 @@ const UsuariosPage = () => {
   };
 
   // Métodos para crear nueva Área, Ficha y Rol
-
-  // Crear Área
   const guardarNuevaArea = async () => {
     if (!newAreaName.trim()) {
       await MySwal.fire('Atención', 'El nombre del área es obligatorio', 'warning');
@@ -362,14 +429,16 @@ const UsuariosPage = () => {
     }
   };
 
-  // Crear Ficha
   const guardarNuevaFicha = async () => {
     if (!newFichaName.trim()) {
       await MySwal.fire('Atención', 'El nombre de la ficha es obligatorio', 'warning');
       return;
     }
     try {
-      await createFichaFormacion({ nombre: newFichaName.trim() });
+      await createFichaFormacion({
+        nombre: newFichaName.trim(),
+        id_titulado: 0,
+      });
       await MySwal.fire('Éxito', 'Ficha creada correctamente', 'success');
       setNewFichaName('');
       fichaModal.onClose();
@@ -380,7 +449,6 @@ const UsuariosPage = () => {
     }
   };
 
-  // Crear Rol
   const guardarNuevoRol = async () => {
     if (!newRolName.trim()) {
       await MySwal.fire('Atención', 'El nombre del rol es obligatorio', 'warning');
@@ -398,18 +466,38 @@ const UsuariosPage = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <DefaultLayout>
+        <div className="flex justify-center items-center h-full p-6">
+          <Spinner label="Cargando..." />
+        </div>
+      </DefaultLayout>
+    );
+  }
+
+  if (error || !permisos.puede_ver) {
+    return (
+      <DefaultLayout>
+        <div className="p-6 text-center text-red-600 flex flex-col items-center gap-4">
+          <Lock size={48} />
+          <h1 className="text-2xl font-bold">Acceso Denegado</h1>
+          <p>{error || 'No tienes permiso para ver este módulo.'}</p>
+        </div>
+      </DefaultLayout>
+    );
+  }
+
   return (
     <DefaultLayout>
       <div className="p-6 space-y-6">
         {/* Encabezado */}
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">
-            👥 Gestión de Usuarios
-          </h1>
+          <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">👥 Gestión de Usuarios</h1>
           <p className="text-sm text-gray-600">Consulta y administra los usuarios registrados.</p>
         </header>
 
-        {/* Tabla para escritorio */}
+        {/* Tabla escritorio */}
         <div className="hidden md:block rounded-xl shadow-sm bg-white overflow-x-auto">
           <Table
             aria-label="Tabla de usuarios"
@@ -448,16 +536,19 @@ const UsuariosPage = () => {
                           ))}
                       </DropdownMenu>
                     </Dropdown>
-                    <Button
-                      className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
-                      endContent={<PlusIcon />}
-                      onPress={() => {
-                        limpiarFormulario();
-                        userOnOpen();
-                      }}
-                    >
-                      Nuevo Usuario
-                    </Button>
+
+                    {permisos.puede_crear && (
+                      <Button
+                        className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
+                        endContent={<PlusIcon />}
+                        onPress={() => {
+                          limpiarFormulario();
+                          userOnOpen();
+                        }}
+                      >
+                        Nuevo Usuario
+                      </Button>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
@@ -484,12 +575,7 @@ const UsuariosPage = () => {
             }
             bottomContent={
               <div className="py-2 px-2 flex justify-center items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="flat"
-                  isDisabled={page === 1}
-                  onPress={() => setPage(page - 1)}
-                >
+                <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
                   Anterior
                 </Button>
                 <Pagination
@@ -499,12 +585,7 @@ const UsuariosPage = () => {
                   total={totalPaginas}
                   onChange={setPage}
                 />
-                <Button
-                  size="sm"
-                  variant="flat"
-                  isDisabled={page === totalPaginas}
-                  onPress={() => setPage(page + 1)}
-                >
+                <Button size="sm" variant="flat" isDisabled={page === totalPaginas} onPress={() => setPage(page + 1)}>
                   Siguiente
                 </Button>
               </div>
@@ -537,7 +618,7 @@ const UsuariosPage = () => {
           </Table>
         </div>
 
-        {/* Modal para crear/editar usuario */}
+        {/* Modal Crear/Editar Usuario */}
         <Modal
           isOpen={userIsOpen}
           onOpenChange={userOnOpenChange}
@@ -546,152 +627,149 @@ const UsuariosPage = () => {
           isDismissable={false}
         >
           <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl max-w-3xl w-full p-8">
-            {() => (
-              <>
-                <ModalHeader className="mb-4 text-xl font-semibold text-[#0D1324]">
-                  {editId ? 'Editar Usuario' : 'Nuevo Usuario'}
-                </ModalHeader>
-                <ModalBody>
-                  <form
-                    className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4"
-                    onSubmit={(evento) => {
-                      evento.preventDefault();
-                      guardarUsuario();
-                    }}
-                  >
+            <>
+              <ModalHeader className="mb-4 text-xl font-semibold text-[#0D1324]">
+                {editId ? 'Editar Usuario' : 'Nuevo Usuario'}
+              </ModalHeader>
+              <ModalBody>
+                <form
+                  className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4"
+                  onSubmit={(evento) => {
+                    evento.preventDefault();
+                    guardarUsuario();
+                  }}
+                >
+                  <Input
+                    label="Nombre"
+                    value={form.nombre}
+                    onValueChange={(valor) => setForm((p) => ({ ...p, nombre: valor }))}
+                    radius="sm"
+                    required
+                  />
+                  <Input
+                    label="Apellido"
+                    value={form.apellido}
+                    onValueChange={(valor) => setForm((p) => ({ ...p, apellido: valor }))}
+                    radius="sm"
+                  />
+                  <Input
+                    label="Cédula"
+                    value={form.cedula}
+                    onValueChange={(valor) => setForm((p) => ({ ...p, cedula: valor }))}
+                    radius="sm"
+                  />
+                  <Input
+                    label="Email"
+                    type="email"
+                    value={form.email}
+                    onValueChange={(valor) => setForm((p) => ({ ...p, email: valor }))}
+                    radius="sm"
+                  />
+                  <Input
+                    label="Teléfono"
+                    value={form.telefono}
+                    onValueChange={(valor) => setForm((p) => ({ ...p, telefono: valor }))}
+                    radius="sm"
+                  />
+                  {!editId && (
                     <Input
-                      label="Nombre"
-                      value={form.nombre}
-                      onValueChange={(valor) => setForm((p) => ({ ...p, nombre: valor }))}
+                      label="Contraseña"
+                      type="password"
+                      value={form.password}
+                      onValueChange={(valor) => setForm((p) => ({ ...p, password: valor }))}
                       radius="sm"
                       required
                     />
-                    <Input
-                      label="Apellido"
-                      value={form.apellido}
-                      onValueChange={(valor) => setForm((p) => ({ ...p, apellido: valor }))}
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Select
+                      label="Área"
+                      selectedKeys={form.id_area ? new Set([form.id_area]) : new Set()}
+                      onSelectionChange={(keys) =>
+                        setForm((p) => ({ ...p, id_area: String(Array.from(keys)[0]) }))
+                      }
                       radius="sm"
-                    />
-                    <Input
-                      label="Cédula"
-                      value={form.cedula}
-                      onValueChange={(valor) => setForm((p) => ({ ...p, cedula: valor }))}
+                      className="flex-grow"
+                    >
+                      {areas.map((area) => (
+                        <SelectItem key={String(area.id)}>{area.nombre_area || area.nombreArea}</SelectItem>
+                      ))}
+                    </Select>
+                    <Button
+                      isIconOnly
+                      variant="solid"
+                      className="bg-[#0D1324] hover:bg-[#1a2133] text-white"
+                      onPress={areaModal.onOpen}
+                      aria-label="Agregar Área"
+                      title="Agregar Área"
+                    >
+                      <PlusIcon size={18} />
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      label="Ficha de Formación"
+                      selectedKeys={form.id_ficha ? new Set([form.id_ficha]) : new Set()}
+                      onSelectionChange={(keys) =>
+                        setForm((p) => ({ ...p, id_ficha: String(Array.from(keys)[0]) }))
+                      }
                       radius="sm"
-                    />
-                    <Input
-                      label="Email"
-                      type="email"
-                      value={form.email}
-                      onValueChange={(valor) => setForm((p) => ({ ...p, email: valor }))}
+                      className="flex-grow"
+                    >
+                      {fichas.map((ficha) => (
+                        <SelectItem key={String(ficha.id)}>{ficha.nombre}</SelectItem>
+                      ))}
+                    </Select>
+                    <Button
+                      isIconOnly
+                      variant="solid"
+                      className="bg-[#0D1324] hover:bg-[#1a2133] text-white"
+                      onPress={fichaModal.onOpen}
+                      aria-label="Agregar Ficha de Formación"
+                      title="Agregar Ficha de Formación"
+                    >
+                      <PlusIcon size={18} />
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      label="Rol"
+                      selectedKeys={form.id_rol ? new Set([form.id_rol]) : new Set()}
+                      onSelectionChange={(keys) =>
+                        setForm((p) => ({ ...p, id_rol: String(Array.from(keys)[0]) }))
+                      }
                       radius="sm"
-                    />
-                    <Input
-                      label="Teléfono"
-                      value={form.telefono}
-                      onValueChange={(valor) => setForm((p) => ({ ...p, telefono: valor }))}
-                      radius="sm"
-                    />
-                    {!editId && (
-                      <Input
-                        label="Contraseña"
-                        type="password"
-                        value={form.password}
-                        onValueChange={(valor) => setForm((p) => ({ ...p, password: valor }))}
-                        radius="sm"
-                        required
-                      />
-                    )}
-                    <div className="flex items-center gap-2">
-                      <Select
-                        label="Área"
-                        selectedKeys={form.id_area ? new Set([form.id_area]) : new Set()}
-                        onSelectionChange={(keys) =>
-                          setForm((p) => ({ ...p, id_area: String(Array.from(keys)[0]) }))
-                        }
-                        radius="sm"
-                        className="flex-grow"
-                      >
-                        {areas.map((area) => (
-                          <SelectItem key={String(area.id)}>{area.nombre_area || area.nombreArea}</SelectItem>
-                        ))}
-                      </Select>
-                      <Button
-                        isIconOnly
-                        variant="solid"
-                        className="bg-[#0D1324] hover:bg-[#1a2133] text-white"
-                        onPress={areaModal.onOpen}
-                        aria-label="Agregar Área"
-                        title="Agregar Área"
-                      >
-                        <PlusIcon size={18} />
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Select
-                        label="Ficha de Formación"
-                        selectedKeys={form.id_ficha ? new Set([form.id_ficha]) : new Set()}
-                        onSelectionChange={(keys) =>
-                          setForm((p) => ({ ...p, id_ficha: String(Array.from(keys)[0]) }))
-                        }
-                        radius="sm"
-                        className="flex-grow"
-                      >
-                        {fichas.map((ficha) => (
-                          <SelectItem key={String(ficha.id)}>{ficha.nombre}</SelectItem>
-                        ))}
-                      </Select>
-                      <Button
-                        isIconOnly
-                        variant="solid"
-                        className="bg-[#0D1324] hover:bg-[#1a2133] text-white"
-                        onPress={fichaModal.onOpen}
-                        aria-label="Agregar Ficha de Formación"
-                        title="Agregar Ficha de Formación"
-                      >
-                        <PlusIcon size={18} />
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Select
-                        label="Rol"
-                        selectedKeys={form.id_rol ? new Set([form.id_rol]) : new Set()}
-                        onSelectionChange={(keys) =>
-                          setForm((p) => ({ ...p, id_rol: String(Array.from(keys)[0]) }))
-                        }
-                        radius="sm"
-                        className="flex-grow"
-                      >
-                        {roles.map((rol) => (
-                          <SelectItem key={String(rol.id)}>{rol.nombre_rol || rol.nombreRol}</SelectItem>
-                        ))}
-                      </Select>
-                      <Button
-                        isIconOnly
-                        variant="solid"
-                        className="bg-[#0D1324] hover:bg-[#1a2133] text-white"
-                        onPress={rolModal.onOpen}
-                        aria-label="Agregar Rol"
-                        title="Agregar Rol"
-                      >
-                        <PlusIcon size={18} />
-                      </Button>
-                    </div>
-                    <div className="md:col-span-2 flex justify-end gap-3 mt-2">
-                      <Button variant="light" onClick={userOnClose} type="button">
-                        Cancelar
-                      </Button>
-                      <Button variant="flat" type="submit">
-                        {editId ? 'Actualizar' : 'Crear'}
-                      </Button>
-                    </div>
-                  </form>
-                </ModalBody>
-              </>
-            )}
+                      className="flex-grow"
+                    >
+                      {roles.map((rol) => (
+                        <SelectItem key={String(rol.id)}>{rol.nombre_rol || rol.nombreRol}</SelectItem>
+                      ))}
+                    </Select>
+                    <Button
+                      isIconOnly
+                      variant="solid"
+                      className="bg-[#0D1324] hover:bg-[#1a2133] text-white"
+                      onPress={rolModal.onOpen}
+                      aria-label="Agregar Rol"
+                      title="Agregar Rol"
+                    >
+                      <PlusIcon size={18} />
+                    </Button>
+                  </div>
+                  <div className="md:col-span-2 flex justify-end gap-3 mt-2">
+                    <Button variant="light" onClick={userOnClose} type="button">
+                      Cancelar
+                    </Button>
+                    <Button variant="flat" type="submit">
+                      {editId ? 'Actualizar' : 'Crear'}
+                    </Button>
+                  </div>
+                </form>
+              </ModalBody>
+            </>
           </ModalContent>
         </Modal>
 
-        {/* Modales para agregar Área, Ficha y Rol */}
         {/* Modal Nueva Área */}
         <Modal
           isOpen={areaModal.isOpen}

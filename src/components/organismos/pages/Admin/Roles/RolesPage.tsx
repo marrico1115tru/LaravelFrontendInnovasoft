@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Cookies from 'js-cookie';
 import {
   Table,
   TableHeader,
@@ -21,6 +22,7 @@ import {
   Checkbox,
   useDisclosure,
   type SortDescriptor,
+  Spinner,
 } from '@heroui/react';
 import {
   getRoles,
@@ -29,11 +31,11 @@ import {
   deleteRol,
 } from '@/Api/RolService';
 import DefaultLayout from '@/layouts/default';
-import { PlusIcon, MoreVertical, Search as SearchIcon } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { PlusIcon, MoreVertical, Search as SearchIcon, Lock, Pencil, Trash } from 'lucide-react';
 
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
+import api from '@/Api/api';
 
 const MySwal = withReactContent(Swal);
 
@@ -44,7 +46,26 @@ const columns = [
   { name: 'Permisos', uid: 'permisos', sortable: false },
   { name: 'Acciones', uid: 'actions' },
 ];
+
 const INITIAL_VISIBLE_COLUMNS = ['id', 'rol', 'usuarios', 'permisos', 'actions'];
+
+// Función para obtener los permisos del usuario por ruta y rol
+const fetchPermisos = async (ruta: string, idRol: number) => {
+  try {
+    const { data } = await api.get('/por-ruta-rol/permisos', {
+      params: { ruta, idRol },
+    });
+    return data.permisos;
+  } catch (error) {
+    console.error('Error al obtener permisos:', error);
+    return {
+      puede_ver: false,
+      puede_crear: false,
+      puede_editar: false,
+      puede_eliminar: false,
+    };
+  }
+};
 
 const RolesPage = () => {
   const [roles, setRoles] = useState<any[]>([]);
@@ -62,9 +83,41 @@ const RolesPage = () => {
 
   const { isOpen, onOpenChange, onOpen, onClose } = useDisclosure();
 
-  // Cargar roles desde API
+  const [permisos, setPermisos] = useState({
+    puede_ver: false,
+    puede_crear: false,
+    puede_editar: false,
+    puede_eliminar: false,
+  });
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Cargar permisos y luego datos
   useEffect(() => {
-    cargarRoles();
+    const initialize = async () => {
+      try {
+        const userCookie = Cookies.get('user');
+        if (!userCookie) throw new Error('No se encontró la sesión del usuario. Por favor, inicie sesión de nuevo.');
+
+        const user = JSON.parse(userCookie);
+        const idRol = user?.id_rol;
+        if (!idRol) throw new Error('El usuario no tiene un rol válido asignado.');
+
+        const rutaActual = '/RolesPage';
+        const fetchedPermisos = await fetchPermisos(rutaActual, idRol);
+        setPermisos(fetchedPermisos);
+
+        if (fetchedPermisos.puede_ver) {
+          await cargarRoles();
+        }
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    initialize();
   }, []);
 
   const cargarRoles = async () => {
@@ -77,8 +130,9 @@ const RolesPage = () => {
     }
   };
 
-  // Eliminar rol con confirmación
   const eliminar = async (id: number) => {
+    if (!permisos.puede_eliminar) return;
+
     const result = await MySwal.fire({
       title: '¿Eliminar rol?',
       text: 'No se podrá recuperar.',
@@ -99,7 +153,6 @@ const RolesPage = () => {
     }
   };
 
-  // Crear o actualizar rol
   const guardar = async () => {
     if (!nombreRol.trim()) {
       await MySwal.fire('Error', 'El nombre del rol es obligatorio', 'error');
@@ -108,9 +161,17 @@ const RolesPage = () => {
     const payload = { nombreRol };
     try {
       if (editId !== null) {
+        if (!permisos.puede_editar) {
+          await MySwal.fire('Acceso denegado', 'No tienes permiso para editar roles.', 'error');
+          return;
+        }
         await updateRol(editId, payload);
         await MySwal.fire('Actualizado', 'Rol actualizado', 'success');
       } else {
+        if (!permisos.puede_crear) {
+          await MySwal.fire('Acceso denegado', 'No tienes permiso para crear roles.', 'error');
+          return;
+        }
         await createRol(payload);
         await MySwal.fire('Creado', 'Rol creado', 'success');
       }
@@ -123,26 +184,25 @@ const RolesPage = () => {
     }
   };
 
-  // Abrir modal para editar rol
   const abrirModalEditar = (r: any) => {
+    if (!permisos.puede_editar) {
+      MySwal.fire('Acceso denegado', 'No tienes permiso para editar roles.', 'error');
+      return;
+    }
     setEditId(r.id);
     setNombreRol(r.nombre_rol || r.nombreRol || '');
     onOpen();
   };
 
-  // Limpiar formulario
   const limpiarForm = () => {
     setEditId(null);
     setNombreRol('');
   };
 
-  // Filtrar roles según texto ingresado
   const filtered = useMemo(() => {
     if (!filterValue) return roles;
     return roles.filter((r) =>
-      `${r.nombre_rol || r.nombreRol}`
-        .toLowerCase()
-        .includes(filterValue.toLowerCase())
+      `${r.nombre_rol || r.nombreRol}`.toLowerCase().includes(filterValue.toLowerCase())
     );
   }, [roles, filterValue]);
 
@@ -164,7 +224,6 @@ const RolesPage = () => {
     return items;
   }, [sliced, sortDescriptor]);
 
-  // Renderizado de celdas
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
       case 'rol':
@@ -178,6 +237,7 @@ const RolesPage = () => {
       case 'permisos':
         return <span className="text-sm text-gray-600">{item.permisos?.length || 0}</span>;
       case 'actions':
+        if (!permisos.puede_editar && !permisos.puede_eliminar) return null;
         return (
           <Dropdown>
             <DropdownTrigger>
@@ -192,12 +252,25 @@ const RolesPage = () => {
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              <DropdownItem key={`editar-${item.id}`} onPress={() => abrirModalEditar(item)}>
-                Editar
-              </DropdownItem>
-              <DropdownItem key={`eliminar-${item.id}`} onPress={() => eliminar(item.id)}>
-                Eliminar
-              </DropdownItem>
+              {permisos.puede_editar ? (
+                <DropdownItem
+                  key={`editar-${item.id}`}
+                  onPress={() => abrirModalEditar(item)}
+                  startContent={<Pencil size={16} />}
+                >
+                  Editar
+                </DropdownItem>
+              ) : null}
+              {permisos.puede_eliminar ? (
+                <DropdownItem
+                  key={`eliminar-${item.id}`}
+                  onPress={() => eliminar(item.id)}
+                  startContent={<Trash size={16} />}
+                  className="text-danger"
+                >
+                  Eliminar
+                </DropdownItem>
+              ) : null}
             </DropdownMenu>
           </Dropdown>
         );
@@ -206,7 +279,6 @@ const RolesPage = () => {
     }
   };
 
-  // Mostrar u ocultar columnas
   const toggleColumn = (key: string) => {
     setVisibleColumns((prev) => {
       const copy = new Set(prev);
@@ -215,6 +287,28 @@ const RolesPage = () => {
       return copy;
     });
   };
+
+  if (loading) {
+    return (
+      <DefaultLayout>
+        <div className="flex justify-center items-center h-full p-6">
+          <Spinner label="Cargando..." />
+        </div>
+      </DefaultLayout>
+    );
+  }
+
+  if (error || !permisos.puede_ver) {
+    return (
+      <DefaultLayout>
+        <div className="p-6 text-center text-red-600 flex flex-col items-center gap-4">
+          <Lock size={48} />
+          <h1 className="text-2xl font-bold">Acceso Denegado</h1>
+          <p>{error || 'No tienes permiso para ver este módulo.'}</p>
+        </div>
+      </DefaultLayout>
+    );
+  }
 
   const topContent = (
     <div className="flex flex-col gap-4">
@@ -253,17 +347,19 @@ const RolesPage = () => {
                 ))}
             </DropdownMenu>
           </Dropdown>
-          <Button
-            className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
-            endContent={<PlusIcon />}
-            onPress={() => {
-              limpiarForm();
-              onOpen();
-            }}
-            aria-label="Nuevo rol"
-          >
-            Nuevo Rol
-          </Button>
+          {permisos.puede_crear && (
+            <Button
+              className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
+              endContent={<PlusIcon />}
+              onPress={() => {
+                limpiarForm();
+                onOpen();
+              }}
+              aria-label="Nuevo rol"
+            >
+              Nuevo Rol
+            </Button>
+          )}
         </div>
       </div>
       <div className="flex items-center justify-between">
@@ -358,51 +454,7 @@ const RolesPage = () => {
           </Table>
         </div>
 
-        <div className="grid gap-4 md:hidden">
-          {sorted.length === 0 ? (
-            <p className="text-center text-gray-500">No se encontraron roles</p>
-          ) : (
-            sorted.map((r) => (
-              <Card key={r.id} className="shadow-sm">
-                <CardContent className="space-y-2 p-4">
-                  <div className="flex justify-between items-start">
-                    <h3 className="font-semibold text-lg break-words max-w-[14rem]">
-                      {r.nombre_rol || r.nombreRol}
-                    </h3>
-                    <Dropdown>
-                      <DropdownTrigger>
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="light"
-                          className="rounded-full text-[#0D1324]"
-                          aria-label="Opciones"
-                        >
-                          <MoreVertical />
-                        </Button>
-                      </DropdownTrigger>
-                      <DropdownMenu>
-                        <DropdownItem key={`editar-${r.id}`} onPress={() => abrirModalEditar(r)}>
-                          Editar
-                        </DropdownItem>
-                        <DropdownItem key={`eliminar-${r.id}`} onPress={() => eliminar(r.id)}>
-                          Eliminar
-                        </DropdownItem>
-                      </DropdownMenu>
-                    </Dropdown>
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">Usuarios:</span> {r.usuarios?.length || 0}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">Permisos:</span> {r.permisos?.length || 0}
-                  </p>
-                  <p className="text-xs text-gray-400">ID: {r.id}</p>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
+        {/* Aquí podrías agregar versión móvil si quieres */}
 
         <Modal
           isOpen={isOpen}
@@ -413,29 +465,27 @@ const RolesPage = () => {
           aria-label="Formulario nuevo/editar rol"
         >
           <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl max-w-md w-full p-6">
-            {(onCloseLocal) => (
-              <>
-                <ModalHeader>{editId !== null ? 'Editar Rol' : 'Nuevo Rol'}</ModalHeader>
-                <ModalBody className="space-y-4">
-                  <Input
-                    label="Nombre del rol"
-                    placeholder="Ej: Administrador"
-                    value={nombreRol}
-                    onValueChange={setNombreRol}
-                    radius="sm"
-                    autoFocus
-                  />
-                </ModalBody>
-                <ModalFooter className="flex justify-end gap-3">
-                  <Button variant="light" onPress={onCloseLocal}>
-                    Cancelar
-                  </Button>
-                  <Button variant="flat" onPress={guardar}>
-                    {editId !== null ? 'Actualizar' : 'Crear'}
-                  </Button>
-                </ModalFooter>
-              </>
-            )}
+            <>
+              <ModalHeader>{editId !== null ? 'Editar Rol' : 'Nuevo Rol'}</ModalHeader>
+              <ModalBody className="space-y-4">
+                <Input
+                  label="Nombre del rol"
+                  placeholder="Ej: Administrador"
+                  value={nombreRol}
+                  onValueChange={setNombreRol}
+                  radius="sm"
+                  autoFocus
+                />
+              </ModalBody>
+              <ModalFooter className="flex justify-end gap-3">
+                <Button variant="light" onPress={onClose}>
+                  Cancelar
+                </Button>
+                <Button variant="flat" onPress={guardar}>
+                  {editId !== null ? 'Actualizar' : 'Crear'}
+                </Button>
+              </ModalFooter>
+            </>
           </ModalContent>
         </Modal>
       </div>

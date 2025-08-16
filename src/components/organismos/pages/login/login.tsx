@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FaUser, FaLock } from "react-icons/fa";
 import { login } from "@/Api/auth/login";
+import Cookies from "js-cookie";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -16,6 +17,14 @@ const Login = () => {
     try {
       const response = await login(email.trim(), password.trim());
       console.log("✅ Usuario logueado:", response);
+
+      // Guardar token en cookie
+      Cookies.set("token", response.token, { expires: 1 });
+
+      // Guardar usuario serializado en cookie (como string JSON)
+      if (response.user) {
+        Cookies.set("user", JSON.stringify(response.user), { expires: 1 });
+      }
 
       navigate("/Home");
     } catch (err: any) {
@@ -37,11 +46,7 @@ const Login = () => {
         <div className="flex justify-center mb-6">
           <img src="/src/img/log.png" alt="Logo" className="h-16" />
         </div>
-
-        <h2 className="text-center text-2xl font-bold mb-6 text-white">
-          INGRESAR
-        </h2>
-
+        <h2 className="text-center text-2xl font-bold mb-6 text-white">INGRESAR</h2>
         <div className="space-y-4">
           <div>
             <label className="text-sm text-white/80">Correo electrónico</label>
@@ -58,7 +63,6 @@ const Login = () => {
               />
             </div>
           </div>
-
           <div>
             <label className="text-sm text-white/80">Contraseña</label>
             <div className="relative">
@@ -74,9 +78,7 @@ const Login = () => {
               />
             </div>
           </div>
-
           {error && <p className="text-red-500 text-sm">{error}</p>}
-
           <Button
             onClick={handleLogin}
             className="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold"
@@ -84,7 +86,6 @@ const Login = () => {
             Iniciar
           </Button>
         </div>
-
         <p
           onClick={() => navigate("/recuperar")}
           className="text-center text-xs text-white/70 mt-4 hover:underline cursor-pointer"

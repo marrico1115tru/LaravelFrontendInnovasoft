@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from "react";
+import Cookies from "js-cookie";
 import {
   Table,
   TableHeader,
@@ -20,67 +21,108 @@ import {
   ModalHeader,
   Checkbox,
   type SortDescriptor,
-} from '@heroui/react';
+  useDisclosure,
+  Spinner,
+} from "@heroui/react";
 import {
   getSedes,
   createSede,
   updateSede,
   deleteSede,
-} from '@/Api/SedesService';
-import { getCentrosFormacion } from '@/Api/centrosformacionTable';
-import DefaultLayout from '@/layouts/default';
-import { PlusIcon, MoreVertical, Search as SearchIcon } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-
-import Swal from 'sweetalert2';
-import withReactContent from 'sweetalert2-react-content';
+} from "@/Api/SedesService";
+import { getCentrosFormacion } from "@/Api/centrosformacionTable";
+import DefaultLayout from "@/layouts/default";
+import { PlusIcon, MoreVertical, Search as SearchIcon, Lock, Pencil, Trash } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import Swal from "sweetalert2";
+import withReactContent from "sweetalert2-react-content";
+import api from "@/Api/api";
 
 const MySwal = withReactContent(Swal);
 
 const columns = [
-  { name: 'ID', uid: 'id', sortable: true },
-  { name: 'Nombre', uid: 'nombre', sortable: false },
-  { name: 'Ubicación', uid: 'ubicacion', sortable: false },
-  { name: 'Centro de Formación', uid: 'centro', sortable: false },
-  { name: 'Teléfono Centro', uid: 'telefonoCentro', sortable: false },
-  { name: 'Email Centro', uid: 'emailCentro', sortable: false },
-  { name: '# Áreas', uid: 'areas', sortable: false },
-  { name: 'Acciones', uid: 'actions' },
+  { name: "ID", uid: "id", sortable: true },
+  { name: "Nombre", uid: "nombre", sortable: false },
+  { name: "Ubicación", uid: "ubicacion", sortable: false },
+  { name: "Centro de Formación", uid: "centro", sortable: false },
+  { name: "Teléfono Centro", uid: "telefonoCentro", sortable: false },
+  { name: "Email Centro", uid: "emailCentro", sortable: false },
+  { name: "# Áreas", uid: "areas", sortable: false },
+  { name: "Acciones", uid: "actions" },
 ];
 
-const INITIAL_VISIBLE_COLUMNS = [
-  'id',
-  'nombre',
-  'ubicacion',
-  'centro',
-  'telefonoCentro',
-  'emailCentro',
-  'areas',
-  'actions',
-];
+const INITIAL_VISIBLE_COLUMNS = columns.map(c => c.uid);
+
+const fetchPermisos = async (ruta: string, idRol: number) => {
+  try {
+    const { data } = await api.get("/por-ruta-rol/permisos", {
+      params: { ruta, idRol },
+    });
+    return data.permisos;
+  } catch (error) {
+    console.error("Error al obtener permisos:", error);
+    return {
+      puede_ver: false,
+      puede_crear: false,
+      puede_editar: false,
+      puede_eliminar: false,
+    };
+  }
+};
 
 export default function SedesPage() {
   const [sedes, setSedes] = useState<any[]>([]);
   const [centros, setCentros] = useState<any[]>([]);
-  const [filterValue, setFilterValue] = useState('');
+  const [filterValue, setFilterValue] = useState("");
   const [visibleColumns, setVisibleColumns] = useState(new Set(INITIAL_VISIBLE_COLUMNS));
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [page, setPage] = useState(1);
   const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
-    column: 'id',
-    direction: 'ascending',
+    column: "id",
+    direction: "ascending",
   });
 
-  const [nombre, setNombre] = useState('');
-  const [ubicacion, setUbicacion] = useState('');
-  // guardamos el id del centro como string para <select>
-  const [idCentro, setIdCentro] = useState<string>('');
+  const [nombre, setNombre] = useState("");
+  const [ubicacion, setUbicacion] = useState("");
+  const [idCentro, setIdCentro] = useState<string>("");
   const [editId, setEditId] = useState<number | null>(null);
+  const { isOpen, onOpen, onClose, onOpenChange } = useDisclosure();
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [permisos, setPermisos] = useState({
+    puede_ver: false,
+    puede_crear: false,
+    puede_editar: false,
+    puede_eliminar: false,
+  });
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    cargarDatos();
+    const initialize = async () => {
+      try {
+        const userCookie = Cookies.get("user");
+        if (!userCookie) throw new Error("No se encontró la sesión del usuario. Por favor, inicie sesión de nuevo.");
+
+        const user = JSON.parse(userCookie);
+        const idRol = user?.id_rol;
+        if (!idRol) throw new Error("El usuario no tiene un rol válido asignado.");
+
+        const rutaActual = "/SedesPage";
+        const permisosObtenidos = await fetchPermisos(rutaActual, idRol);
+        setPermisos(permisosObtenidos);
+
+        if (permisosObtenidos.puede_ver) {
+          await cargarDatos();
+        }
+      } catch (e: any) {
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initialize();
   }, []);
 
   const cargarDatos = async () => {
@@ -89,43 +131,48 @@ export default function SedesPage() {
       setSedes(sds);
       setCentros(cfs);
     } catch (err) {
-      console.error('Error cargando sedes y centros', err);
-      await MySwal.fire('Error', 'No se pudo cargar las sedes y centros', 'error');
+      console.error("Error cargando sedes y centros", err);
+      await MySwal.fire("Error", "No se pudo cargar las sedes y centros", "error");
     }
   };
 
   const eliminar = async (id: number) => {
+    if (!permisos.puede_eliminar) {
+      await MySwal.fire("Acceso denegado", "No tienes permiso para eliminar sedes.", "error");
+      return;
+    }
+
     const result = await MySwal.fire({
-      title: '¿Eliminar sede?',
-      text: 'No se podrá recuperar.',
-      icon: 'warning',
+      title: "¿Eliminar sede?",
+      text: "No se podrá recuperar.",
+      icon: "warning",
       showCancelButton: true,
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar',
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
     });
     if (!result.isConfirmed) return;
 
     try {
       await deleteSede(id);
-      await MySwal.fire('Eliminada', `Sede eliminada: ID ${id}`, 'success');
+      await MySwal.fire("Eliminada", `Sede eliminada: ID ${id}`, "success");
       await cargarDatos();
     } catch (error) {
       console.error(error);
-      await MySwal.fire('Error', 'No se pudo eliminar la sede', 'error');
+      await MySwal.fire("Error", "No se pudo eliminar la sede", "error");
     }
   };
 
   const guardar = async () => {
     if (!nombre.trim()) {
-      await MySwal.fire('Error', 'El nombre es obligatorio', 'error');
+      await MySwal.fire("Error", "El nombre es obligatorio", "error");
       return;
     }
     if (!ubicacion.trim()) {
-      await MySwal.fire('Error', 'La ubicación es obligatoria', 'error');
+      await MySwal.fire("Error", "La ubicación es obligatoria", "error");
       return;
     }
     if (!idCentro) {
-      await MySwal.fire('Error', 'Debe seleccionar un centro de formación', 'error');
+      await MySwal.fire("Error", "Debe seleccionar un centro de formación", "error");
       return;
     }
 
@@ -137,41 +184,57 @@ export default function SedesPage() {
 
     try {
       if (editId !== null) {
+        if (!permisos.puede_editar) {
+          await MySwal.fire("Acceso denegado", "No tienes permiso para editar sedes.", "error");
+          return;
+        }
         await updateSede(editId, payload);
-        await MySwal.fire('Actualizada', 'Sede actualizada', 'success');
+        await MySwal.fire("Actualizada", "Sede actualizada", "success");
       } else {
+        if (!permisos.puede_crear) {
+          await MySwal.fire("Acceso denegado", "No tienes permiso para crear sedes.", "error");
+          return;
+        }
         await createSede(payload);
-        await MySwal.fire('Creada', 'Sede creada', 'success');
+        await MySwal.fire("Creada", "Sede creada", "success");
       }
+
       limpiarForm();
-      setIsModalOpen(false);
+      onClose();
       await cargarDatos();
     } catch (error) {
       console.error(error);
-      await MySwal.fire('Error', 'Error guardando la sede', 'error');
+      await MySwal.fire("Error", "Error guardando la sede", "error");
     }
   };
 
-  const abrirModalEditar = (s: any) => {
-    setEditId(s.id);
-    setNombre(s.nombre || '');
-    setUbicacion(s.ubicacion || '');
-    setIdCentro(s.centro_formacion?.id?.toString() || '');
-    setIsModalOpen(true);
+  const abrirModalEditar = (sede: any) => {
+    if (!permisos.puede_editar) {
+      MySwal.fire("Acceso denegado", "No tienes permiso para editar sedes.", "error");
+      return;
+    }
+    setEditId(sede.id);
+    setNombre(sede.nombre || "");
+    setUbicacion(sede.ubicacion || "");
+    setIdCentro(sede.centro_formacion?.id?.toString() || "");
+    onOpen();
   };
 
   const limpiarForm = () => {
     setEditId(null);
-    setNombre('');
-    setUbicacion('');
-    setIdCentro('');
+    setNombre("");
+    setUbicacion("");
+    setIdCentro("");
   };
 
   const filtered = useMemo(() => {
     if (!filterValue) return sedes;
     const lowerFilter = filterValue.toLowerCase();
-    return sedes.filter((s) =>
-      `${s.nombre} ${s.ubicacion} ${s.centro_formacion?.nombre || ''}`.toLowerCase().includes(lowerFilter)
+    return sedes.filter(
+      (s) =>
+        `${s.nombre} ${s.ubicacion} ${s.centro_formacion?.nombre || ""}`
+          .toLowerCase()
+          .includes(lowerFilter)
     );
   }, [sedes, filterValue]);
 
@@ -186,73 +249,97 @@ export default function SedesPage() {
     const items = [...sliced];
     const { column, direction } = sortDescriptor;
     items.sort((a, b) => {
-      // Para columna especial: nombre del centro y teléfono, email
       const x =
-        column === 'centro'
-          ? a.centro_formacion?.nombre || ''
-          : column === 'telefonoCentro'
-          ? a.centro_formacion?.telefono || ''
-          : column === 'emailCentro'
-          ? a.centro_formacion?.email || ''
+        column === "centro"
+          ? a.centro_formacion?.nombre || ""
+          : column === "telefonoCentro"
+          ? a.centro_formacion?.telefono || ""
+          : column === "emailCentro"
+          ? a.centro_formacion?.email || ""
           : a[column as keyof typeof a];
       const y =
-        column === 'centro'
-          ? b.centro_formacion?.nombre || ''
-          : column === 'telefonoCentro'
-          ? b.centro_formacion?.telefono || ''
-          : column === 'emailCentro'
-          ? b.centro_formacion?.email || ''
+        column === "centro"
+          ? b.centro_formacion?.nombre || ""
+          : column === "telefonoCentro"
+          ? b.centro_formacion?.telefono || ""
+          : column === "emailCentro"
+          ? b.centro_formacion?.email || ""
           : b[column as keyof typeof b];
 
       if (x === y) return 0;
-      return (x > y ? 1 : -1) * (direction === 'ascending' ? 1 : -1);
+      return (x > y ? 1 : -1) * (direction === "ascending" ? 1 : -1);
     });
+
     return items;
   }, [sliced, sortDescriptor]);
 
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
-      case 'nombre':
+      case "nombre":
         return (
           <span className="font-medium text-gray-800 break-words max-w-[16rem]">
             {item.nombre}
           </span>
         );
-      case 'ubicacion':
+      case "ubicacion":
         return <span className="text-sm text-gray-600">{item.ubicacion}</span>;
-      case 'centro':
-        return (
-          <span className="text-sm text-gray-600">{item.centro_formacion?.nombre || '—'}</span>
-        );
-      case 'telefonoCentro':
+      case "centro":
         return (
           <span className="text-sm text-gray-600">
-            {item.centro_formacion?.telefono || '—'}
+            {item.centro_formacion?.nombre || "—"}
           </span>
         );
-      case 'emailCentro':
+      case "telefonoCentro":
         return (
           <span className="text-sm text-gray-600">
-            {item.centro_formacion?.email || '—'}
+            {item.centro_formacion?.telefono || "—"}
           </span>
         );
-      case 'areas':
+      case "emailCentro":
+        return (
+          <span className="text-sm text-gray-600">
+            {item.centro_formacion?.email || "—"}
+          </span>
+        );
+      case "areas":
         return <span className="text-sm text-gray-600">{item.areas?.length || 0}</span>;
-      case 'actions':
+      case "actions":
+        // Evitar renderizar si no tiene ningún permiso
+        if (!permisos.puede_editar && !permisos.puede_eliminar) return null;
+
         return (
           <Dropdown>
             <DropdownTrigger>
-              <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
+              <Button
+                isIconOnly
+                size="sm"
+                variant="light"
+                className="rounded-full text-[#0D1324]"
+                aria-label="Opciones"
+              >
                 <MoreVertical />
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              <DropdownItem key={`editar-${item.id}`} onPress={() => abrirModalEditar(item)}>
-                Editar
-              </DropdownItem>
-              <DropdownItem key={`eliminar-${item.id}`} onPress={() => eliminar(item.id)}>
-                Eliminar
-              </DropdownItem>
+              {permisos.puede_editar ? (
+                <DropdownItem
+                  key={`editar-${item.id}`}
+                  onPress={() => abrirModalEditar(item)}
+                  startContent={<Pencil size={16} />}
+                >
+                  Editar
+                </DropdownItem>
+              ) : null}
+              {permisos.puede_eliminar ? (
+                <DropdownItem
+                  key={`eliminar-${item.id}`}
+                  onPress={() => eliminar(item.id)}
+                  startContent={<Trash size={16} />}
+                  className="text-danger"
+                >
+                  Eliminar
+                </DropdownItem>
+              ) : null}
             </DropdownMenu>
           </Dropdown>
         );
@@ -270,6 +357,27 @@ export default function SedesPage() {
     });
   };
 
+  if (loading) {
+    return (
+      <DefaultLayout>
+        <div className="flex justify-center items-center h-full p-6">
+          <Spinner label="Cargando..." />
+        </div>
+      </DefaultLayout>
+    );
+  }
+
+  if (error || !permisos.puede_ver) {
+    return (
+      <DefaultLayout>
+        <div className="p-6 text-center text-red-600 flex flex-col items-center gap-4">
+          <Lock size={48} />
+          <h1 className="text-2xl font-bold">Acceso Denegado</h1>
+          <p>{error || "No tienes permiso para ver este módulo."}</p>
+        </div>
+      </DefaultLayout>
+    );
+  }
   const topContent = (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
@@ -282,15 +390,18 @@ export default function SedesPage() {
           value={filterValue}
           onValueChange={setFilterValue}
           onClear={() => setFilterValue('')}
+          aria-label="Buscar sedes"
         />
         <div className="flex gap-3">
           <Dropdown>
             <DropdownTrigger>
-              <Button variant="flat">Columnas</Button>
+              <Button variant="flat" aria-haspopup="menu">
+                Columnas
+              </Button>
             </DropdownTrigger>
             <DropdownMenu aria-label="Seleccionar columnas">
               {columns
-                .filter((c) => c.uid !== 'actions')
+                .filter((c) => c.uid !== "actions")
                 .map((col) => (
                   <DropdownItem key={col.uid} className="py-1 px-2">
                     <Checkbox
@@ -304,16 +415,19 @@ export default function SedesPage() {
                 ))}
             </DropdownMenu>
           </Dropdown>
-          <Button
-            className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
-            endContent={<PlusIcon />}
-            onPress={() => {
-              limpiarForm();
-              setIsModalOpen(true);
-            }}
-          >
-            Nueva Sede
-          </Button>
+          {permisos.puede_crear && (
+            <Button
+              className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
+              endContent={<PlusIcon />}
+              onPress={() => {
+                limpiarForm();
+                onOpen();
+              }}
+              aria-label="Nueva sede"
+            >
+              Nueva Sede
+            </Button>
+          )}
         </div>
       </div>
       <div className="flex items-center justify-between">
@@ -327,6 +441,7 @@ export default function SedesPage() {
               setRowsPerPage(parseInt(e.target.value));
               setPage(1);
             }}
+            aria-label="Filas por página"
           >
             {[5, 10, 15].map((n) => (
               <option key={n} value={n}>
@@ -341,27 +456,11 @@ export default function SedesPage() {
 
   const bottomContent = (
     <div className="py-2 px-2 flex justify-center items-center gap-2">
-      <Button
-        isDisabled={page === 1}
-        size="sm"
-        variant="flat"
-        onPress={() => setPage(page - 1)}
-      >
+      <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)} aria-label="Página anterior">
         Anterior
       </Button>
-      <Pagination
-        isCompact
-        showControls
-        page={page}
-        total={pages}
-        onChange={setPage}
-      />
-      <Button
-        isDisabled={page === pages}
-        size="sm"
-        variant="flat"
-        onPress={() => setPage(page + 1)}
-      >
+      <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
+      <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)} aria-label="Página siguiente">
         Siguiente
       </Button>
     </div>
@@ -411,7 +510,7 @@ export default function SedesPage() {
           </Table>
         </div>
 
-        {/* Vista responsive móvil */}
+        {/* Responsive móvil */}
         <div className="grid gap-4 md:hidden">
           {sorted.length === 0 ? (
             <p className="text-center text-gray-500">No se encontraron sedes</p>
@@ -421,29 +520,33 @@ export default function SedesPage() {
                 <CardContent className="space-y-2 p-4">
                   <div className="flex justify-between items-start">
                     <h3 className="font-semibold text-lg">{s.nombre}</h3>
-                    <Dropdown>
-                      <DropdownTrigger>
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="light"
-                          className="rounded-full text-[#0D1324]"
-                        >
-                          <MoreVertical />
-                        </Button>
-                      </DropdownTrigger>
-                      <DropdownMenu>
-                        <DropdownItem
-                          key={`editar-${s.id}`}
-                          onPress={() => abrirModalEditar(s)}
-                        >
-                          Editar
-                        </DropdownItem>
-                        <DropdownItem key={`eliminar-${s.id}`} onPress={() => eliminar(s.id)}>
-                          Eliminar
-                        </DropdownItem>
-                      </DropdownMenu>
-                    </Dropdown>
+                    {(permisos.puede_editar || permisos.puede_eliminar) ? (
+                      <Dropdown>
+                        <DropdownTrigger>
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="light"
+                            className="rounded-full text-[#0D1324]"
+                            aria-label="Opciones"
+                          >
+                            <MoreVertical />
+                          </Button>
+                        </DropdownTrigger>
+                        <DropdownMenu>
+                          {permisos.puede_editar ? (
+                            <DropdownItem key={`editar-${s.id}`} onPress={() => abrirModalEditar(s)}>
+                              Editar
+                            </DropdownItem>
+                          ) : null}
+                          {permisos.puede_eliminar ? (
+                            <DropdownItem key={`eliminar-${s.id}`} onPress={() => eliminar(s.id)}>
+                              Eliminar
+                            </DropdownItem>
+                          ) : null}
+                        </DropdownMenu>
+                      </Dropdown>
+                    ) : null}
                   </div>
                   <p className="text-sm text-gray-600">
                     <span className="font-medium">Ubicación:</span> {s.ubicacion}
@@ -468,14 +571,16 @@ export default function SedesPage() {
         </div>
 
         <Modal
-          isOpen={isModalOpen}
-          onOpenChange={setIsModalOpen}
+          isOpen={isOpen}
+          onOpenChange={onOpenChange}
           placement="center"
           className="backdrop-blur-sm bg-black/30"
+          isDismissable={false}
+          aria-label="Formulario nuevo/editar sede"
         >
           <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl max-w-lg w-full p-6">
             <>
-              <ModalHeader>{editId !== null ? 'Editar Sede' : 'Nueva Sede'}</ModalHeader>
+              <ModalHeader>{editId !== null ? "Editar Sede" : "Nueva Sede"}</ModalHeader>
               <ModalBody className="space-y-4">
                 <Input
                   label="Nombre"
@@ -483,6 +588,7 @@ export default function SedesPage() {
                   value={nombre}
                   onValueChange={setNombre}
                   radius="sm"
+                  autoFocus
                 />
                 <Input
                   label="Ubicación"
@@ -510,11 +616,11 @@ export default function SedesPage() {
                 </div>
               </ModalBody>
               <ModalFooter className="flex justify-end gap-3">
-                <Button variant="light" onPress={() => setIsModalOpen(false)}>
+                <Button variant="light" onPress={() => onClose()}>
                   Cancelar
                 </Button>
                 <Button variant="flat" onPress={guardar}>
-                  {editId !== null ? 'Actualizar' : 'Crear'}
+                  {editId !== null ? "Actualizar" : "Crear"}
                 </Button>
               </ModalFooter>
             </>

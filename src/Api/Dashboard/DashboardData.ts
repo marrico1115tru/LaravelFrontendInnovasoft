@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "@/Api/api";
 
 interface Usuario {
   id: number;
@@ -29,11 +29,6 @@ interface DashboardData {
   areas: Area[];
 }
 
-
-const config = {
-  withCredentials: true,
-};
-
 export const useDashboardData = () => {
   const [data, setData] = useState<DashboardData>({
     totalUsuarios: 0,
@@ -51,9 +46,9 @@ export const useDashboardData = () => {
     const fetchDashboardData = async () => {
       try {
         const [usuariosRes, productosRes, areasRes] = await Promise.all([
-          axios.get("http://127.0.0.1:8000/api/usuarios", config),
-          axios.get("http://127.0.0.1:8000/api/productos", config),
-          axios.get("http://127.0.0.1:8000/api/areas", config),
+          api.get<Usuario[]>("/usuarios"),
+          api.get<Producto[]>("/productos"),
+          api.get<Area[]>("/areas"),
         ]);
 
         setData({
@@ -61,11 +56,7 @@ export const useDashboardData = () => {
           totalProductos: productosRes.data.length,
           totalAreas: areasRes.data.length,
           resumen: Math.floor(
-            ((usuariosRes.data.length +
-              productosRes.data.length +
-              areasRes.data.length) /
-              500) *
-              100
+            ((usuariosRes.data.length + productosRes.data.length + areasRes.data.length) / 500) * 100
           ),
           usuarios: usuariosRes.data,
           productos: productosRes.data,

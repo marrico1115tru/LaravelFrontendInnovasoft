@@ -9,7 +9,7 @@ const api = axios.create({
   },
 });
 
-// Interceptor para añadir token desde cookies
+
 api.interceptors.request.use((config) => {
   const token = Cookies.get("token");
   if (token) {

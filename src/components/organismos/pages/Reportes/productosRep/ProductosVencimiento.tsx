@@ -1,11 +1,15 @@
+"use client";
+
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { Button } from "@/components/ui/button";
 import DefaultLayout from "@/layouts/default";
 import Modal from "@/components/ui/Modal";
-import api from "@/Api/api"; // ← Aquí usamos la instancia configurada
+import api from "@/Api/api";
+import Cookies from "js-cookie";
+import { Lock } from "lucide-react";
 
 interface ProductoProximoVencer {
   id: number;
@@ -18,19 +22,73 @@ interface ProductosProximosVencerResponse {
   data: ProductoProximoVencer[];
 }
 
+// Función para obtener permisos
+const fetchPermisos = async (ruta: string, idRol: number) => {
+  try {
+    const { data } = await api.get("/por-ruta-rol/permisos", {
+      params: { ruta, idRol },
+    });
+    return data.permisos;
+  } catch (error) {
+    console.error("Error al obtener permisos:", error);
+    return {
+      puede_ver: false,
+      puede_crear: false,
+      puede_editar: false,
+      puede_eliminar: false,
+    };
+  }
+};
+
 export default function ProductosProximosAVencer() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [permisos, setPermisos] = useState({
+    puede_ver: false,
+    puede_crear: false,
+    puede_editar: false,
+    puede_eliminar: false,
+  });
+  const [errorPermiso, setErrorPermiso] = useState<string | null>(null);
 
-  const { data, isLoading, error } = useQuery<ProductosProximosVencerResponse>({
+  const {
+    data,
+    isLoading,
+    isError,
+  } = useQuery<ProductosProximosVencerResponse>({
     queryKey: ["productos-proximos-vencer"],
     queryFn: async () => {
-      const res = await api.get("/reportes/productos-proximos-vencer", {
+      const res = await api.get<ProductosProximosVencerResponse>("/reportes/productos-proximos-vencer", {
         withCredentials: true,
       });
       return res.data;
     },
+    enabled: permisos.puede_ver,
   });
+
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        const userCookie = Cookies.get("user");
+        if (!userCookie) throw new Error("No se encontró la sesión del usuario. Por favor, inicie sesión.");
+
+        const user = JSON.parse(userCookie);
+        const idRol = user?.id_rol;
+        if (!idRol) throw new Error("El usuario no tiene un rol válido asignado.");
+
+        const rutaActual = "/report/productosRep/ProductosVencimiento";
+        const permisosObtenidos = await fetchPermisos(rutaActual, idRol);
+        setPermisos(permisosObtenidos);
+
+        if (!permisosObtenidos.puede_ver) {
+          setErrorPermiso("No tienes permiso para ver este reporte.");
+        }
+      } catch (e: any) {
+        setErrorPermiso(e.message);
+      }
+    };
+    initialize();
+  }, []);
 
   const exportarPDF = async () => {
     if (!containerRef.current) return;
@@ -66,14 +124,11 @@ export default function ProductosProximosAVencer() {
     pdf.save("reporte_productos_proximos_vencer.pdf");
   };
 
-  if (isLoading) return <p className="p-6">Cargando datos...</p>;
-  if (error) return <p className="p-6 text-red-500">Error al cargar los datos.</p>;
-  if (!data?.data) return <p className="p-6">No se encontraron datos.</p>;
-
-  const productos = data.data;
-
   const ReportContent = () => (
-    <div className="bg-white p-6 rounded-xl shadow-lg max-w-6xl mx-auto border border-gray-200">
+    <div
+      className="bg-white p-6 rounded-xl shadow-lg max-w-6xl mx-auto border border-gray-200"
+      ref={containerRef}
+    >
       <div className="text-center mb-6">
         <h2 className="text-3xl font-bold text-blue-800">INNOVASOFT</h2>
         <p className="text-sm text-gray-500">
@@ -89,7 +144,7 @@ export default function ProductosProximosAVencer() {
         </p>
       </div>
 
-      {productos.length === 0 ? (
+      {data && data.data.length === 0 ? (
         <p className="text-center text-gray-600 text-lg py-10">
           No hay productos próximos a vencer.
         </p>
@@ -105,7 +160,7 @@ export default function ProductosProximosAVencer() {
               </tr>
             </thead>
             <tbody className="text-sm text-gray-700">
-              {productos.map((prod, index) => {
+              {data?.data.map((prod, index) => {
                 let fechaFormateada = prod.fecha_vencimiento;
                 if (prod.fecha_vencimiento?.includes("/")) {
                   const [day, month, year] = prod.fecha_vencimiento.split("/");
@@ -140,6 +195,26 @@ export default function ProductosProximosAVencer() {
       )}
     </div>
   );
+
+  if (isLoading) {
+    return (
+      <DefaultLayout>
+        <div className="p-6">Cargando datos...</div>
+      </DefaultLayout>
+    );
+  }
+
+  if (isError || errorPermiso || !permisos.puede_ver) {
+    return (
+      <DefaultLayout>
+        <div className="p-6 text-center text-red-600 flex flex-col items-center gap-4">
+          <Lock size={48} />
+          <h1 className="text-2xl font-bold">Acceso Denegado</h1>
+          <p>{errorPermiso || "No tienes permiso para ver este reporte."}</p>
+        </div>
+      </DefaultLayout>
+    );
+  }
 
   return (
     <DefaultLayout>

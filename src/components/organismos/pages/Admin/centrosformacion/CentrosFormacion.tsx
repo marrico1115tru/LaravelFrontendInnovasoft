@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import Cookies from "js-cookie";
 import {
   Table,
   TableHeader,
@@ -22,6 +23,8 @@ import {
   Select,
   SelectItem,
   type SortDescriptor,
+  Spinner,
+  useDisclosure,
 } from "@heroui/react";
 
 import {
@@ -32,8 +35,11 @@ import {
 } from "@/Api/centrosformacionTable";
 
 import { obtenerMunicipios } from "@/Api/MunicipiosForm";
+
+import api from "@/Api/api";
+
 import DefaultLayout from "@/layouts/default";
-import { PlusIcon, MoreVertical, Search as SearchIcon } from "lucide-react";
+import { PlusIcon, MoreVertical, Search as SearchIcon, Pencil, Trash, Lock } from "lucide-react";
 
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
@@ -62,6 +68,24 @@ const INITIAL_VISIBLE_COLUMNS = [
   "actions",
 ];
 
+// Función para obtener permisos de la API
+const fetchPermisos = async (ruta: string, idRol: number) => {
+  try {
+    const { data } = await api.get("/por-ruta-rol/permisos", {
+      params: { ruta, idRol },
+    });
+    return data.permisos;
+  } catch (error) {
+    console.error("Error al obtener permisos:", error);
+    return {
+      puede_ver: false,
+      puede_crear: false,
+      puede_editar: false,
+      puede_eliminar: false,
+    };
+  }
+};
+
 const CentrosFormacionPage = () => {
   const [centros, setCentros] = useState<any[]>([]);
   const [municipios, setMunicipios] = useState<any[]>([]);
@@ -74,6 +98,7 @@ const CentrosFormacionPage = () => {
     direction: "ascending",
   });
 
+  // Campos formulario
   const [nombre, setNombre] = useState("");
   const [ubicacion, setUbicacion] = useState("");
   const [telefono, setTelefono] = useState("");
@@ -81,10 +106,49 @@ const CentrosFormacionPage = () => {
   const [idMunicipio, setIdMunicipio] = useState("");
   const [editId, setEditId] = useState<number | null>(null);
 
-  // Control manual del modal (sin isDismissable)
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Modal control
+  const { isOpen: isModalOpen, onOpen: openModal, onClose: closeModal } = useDisclosure();
 
-  // Cargar centros
+  // Estados para permisos y carga
+  const [permisos, setPermisos] = useState({
+    puede_ver: false,
+    puede_crear: false,
+    puede_editar: false,
+    puede_eliminar: false,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Carga inicial permisos y datos
+  useEffect(() => {
+    const initializeComponent = async () => {
+      try {
+        const userCookie = Cookies.get("user");
+        if (!userCookie) throw new Error("No se encontró la sesión del usuario. Por favor, inicie sesión nuevamente.");
+
+        const user = JSON.parse(userCookie);
+        const idRol = user?.id_rol;
+        if (!idRol) throw new Error("El usuario no tiene un rol válido asignado.");
+
+        const rutaActual = "/CentrosFormaciones";
+
+        const fetchedPermisos = await fetchPermisos(rutaActual, idRol);
+        setPermisos(fetchedPermisos);
+
+        if (fetchedPermisos.puede_ver) {
+          await cargarCentros();
+          await cargarMunicipios();
+        }
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeComponent();
+  }, []);
+
   const cargarCentros = async () => {
     try {
       const data = await getCentrosFormacion();
@@ -95,7 +159,6 @@ const CentrosFormacionPage = () => {
     }
   };
 
-  // Cargar municipios
   const cargarMunicipios = async () => {
     try {
       const data = await obtenerMunicipios();
@@ -106,12 +169,6 @@ const CentrosFormacionPage = () => {
     }
   };
 
-  useEffect(() => {
-    cargarCentros();
-    cargarMunicipios();
-  }, []);
-
-  // Eliminar centro con confirmación
   const eliminar = async (id: number) => {
     const result = await MySwal.fire({
       title: "¿Eliminar centro?",
@@ -134,13 +191,20 @@ const CentrosFormacionPage = () => {
     }
   };
 
-  // Guardar (crear o actualizar)
+  const limpiarFormulario = () => {
+    setNombre("");
+    setUbicacion("");
+    setTelefono("");
+    setEmail("");
+    setIdMunicipio("");
+    setEditId(null);
+  };
+
   const guardar = async () => {
     if (!nombre.trim()) {
       await MySwal.fire("Aviso", "El nombre es obligatorio", "info");
       return;
     }
-
     if (!idMunicipio) {
       await MySwal.fire("Aviso", "Debe seleccionar un municipio", "info");
       return;
@@ -162,7 +226,7 @@ const CentrosFormacionPage = () => {
         await createCentroFormacion(payload);
         await MySwal.fire("Éxito", "Centro creado", "success");
       }
-      setIsModalOpen(false);
+      closeModal();
       limpiarFormulario();
       await cargarCentros();
     } catch (error) {
@@ -171,34 +235,24 @@ const CentrosFormacionPage = () => {
     }
   };
 
-  const limpiarFormulario = () => {
-    setNombre("");
-    setUbicacion("");
-    setTelefono("");
-    setEmail("");
-    setIdMunicipio("");
-    setEditId(null);
+  const abrirModalEditar = (centro: any) => {
+    setEditId(centro.id);
+    setNombre(centro.nombre || "");
+    setUbicacion(centro.ubicacion || "");
+    setTelefono(centro.telefono || "");
+    setEmail(centro.email || "");
+    setIdMunicipio(centro.municipio?.id?.toString() || "");
+    openModal();
   };
 
-  const abrirModalEditar = (c: any) => {
-    setEditId(c.id);
-    setNombre(c.nombre || "");
-    setUbicacion(c.ubicacion || "");
-    setTelefono(c.telefono || "");
-    setEmail(c.email || "");
-    // Aquí usamos c.municipio.id (no idMunicipio)
-    setIdMunicipio(c.municipio?.id?.toString() || "");
-    setIsModalOpen(true);
-  };
-
-  // Filtro usando municipio (relación) y no idMunicipio
   const filtered = useMemo(() => {
     if (!filterValue) return centros;
     const lowerFilter = filterValue.toLowerCase();
-    return centros.filter((c) =>
-      `${c.nombre} ${c.ubicacion} ${c.email} ${c.municipio?.nombre || ""}`
-        .toLowerCase()
-        .includes(lowerFilter)
+    return centros.filter(
+      (c) =>
+        `${c.nombre} ${c.ubicacion} ${c.email} ${c.municipio?.nombre || ""}`
+          .toLowerCase()
+          .includes(lowerFilter)
     );
   }, [centros, filterValue]);
 
@@ -236,13 +290,13 @@ const CentrosFormacionPage = () => {
       case "email":
         return <span className="text-sm text-gray-600">{item.email}</span>;
       case "municipio":
-        // Aquí referenciamos correctamente municipio.nombre
-        return (
-          <span className="text-sm text-gray-600">{item.municipio?.nombre || "—"}</span>
-        );
+        return <span className="text-sm text-gray-600">{item.municipio?.nombre || "—"}</span>;
       case "sedes":
         return <span className="text-sm text-gray-600">{item.sedes?.length || 0}</span>;
       case "actions":
+        if (!permisos.puede_editar && !permisos.puede_eliminar) {
+          return null;
+        }
         return (
           <Dropdown>
             <DropdownTrigger>
@@ -251,35 +305,68 @@ const CentrosFormacionPage = () => {
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              <DropdownItem onPress={() => abrirModalEditar(item)} key={`editar-${item.id}`}>
-                Editar
-              </DropdownItem>
-              <DropdownItem onPress={() => eliminar(item.id)} key={`eliminar-${item.id}`}>
-                Eliminar
-              </DropdownItem>
+              {(() => {
+                const itemsReact = [];
+                if (permisos.puede_editar) {
+                  itemsReact.push(
+                    <DropdownItem onPress={() => abrirModalEditar(item)} key={`editar-${item.id}`} startContent={<Pencil size={16} />}>
+                      Editar
+                    </DropdownItem>
+                  );
+                }
+                if (permisos.puede_eliminar) {
+                  itemsReact.push(
+                    <DropdownItem onPress={() => eliminar(item.id)} key={`eliminar-${item.id}`} startContent={<Trash size={16} />} className="text-danger">
+                      Eliminar
+                    </DropdownItem>
+                  );
+                }
+                return itemsReact;
+              })()}
             </DropdownMenu>
           </Dropdown>
         );
       default:
-        return item[columnKey as keyof typeof item];
+        return item[columnKey as keyof typeof item] ?? "—";
     }
   };
 
   const toggleColumn = (key: string) => {
     setVisibleColumns((prev) => {
       const copy = new Set(prev);
-      copy.has(key) ? copy.delete(key) : copy.add(key);
+      if (copy.has(key)) copy.delete(key);
+      else copy.add(key);
       return copy;
     });
   };
+
+  if (loading) {
+    return (
+      <DefaultLayout>
+        <div className="flex justify-center items-center h-full p-6">
+          <Spinner label="Cargando..." />
+        </div>
+      </DefaultLayout>
+    );
+  }
+
+  if (error || !permisos.puede_ver) {
+    return (
+      <DefaultLayout>
+        <div className="p-6 text-center text-red-600 flex flex-col items-center gap-4">
+          <Lock size={48} />
+          <h1 className="text-2xl font-bold">Acceso Denegado</h1>
+          <p>{error || "No tienes permiso para ver este módulo."}</p>
+        </div>
+      </DefaultLayout>
+    );
+  }
 
   return (
     <DefaultLayout>
       <div className="p-6 space-y-6">
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">
-            🏫 Gestión de Centros de Formación
-          </h1>
+          <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">🏫 Gestión de Centros de Formación</h1>
           <p className="text-sm text-gray-600">Consulta y administra los centros disponibles.</p>
         </header>
 
@@ -321,13 +408,18 @@ const CentrosFormacionPage = () => {
                           ))}
                       </DropdownMenu>
                     </Dropdown>
-                    <Button
-                      className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
-                      endContent={<PlusIcon />}
-                      onPress={() => setIsModalOpen(true)}
-                    >
-                      Nuevo Centro
-                    </Button>
+                    {permisos.puede_crear && (
+                      <Button
+                        className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
+                        endContent={<PlusIcon />}
+                        onPress={() => {
+                          limpiarFormulario();
+                          openModal();
+                        }}
+                      >
+                        Nuevo Centro
+                      </Button>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
@@ -354,27 +446,11 @@ const CentrosFormacionPage = () => {
             }
             bottomContent={
               <div className="py-2 px-2 flex justify-center items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="flat"
-                  isDisabled={page === 1}
-                  onPress={() => setPage(page - 1)}
-                >
+                <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
                   Anterior
                 </Button>
-                <Pagination
-                  isCompact
-                  showControls
-                  page={page}
-                  total={pages}
-                  onChange={setPage}
-                />
-                <Button
-                  size="sm"
-                  variant="flat"
-                  isDisabled={page === pages}
-                  onPress={() => setPage(page + 1)}
-                >
+                <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
+                <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>
                   Siguiente
                 </Button>
               </div>
@@ -410,7 +486,10 @@ const CentrosFormacionPage = () => {
         <Modal
           isOpen={isModalOpen}
           onOpenChange={(open) => {
-            if (!open) setIsModalOpen(false);
+            if (!open) {
+              closeModal();
+              limpiarFormulario();
+            }
           }}
           placement="center"
           className="backdrop-blur-sm bg-black/30"
@@ -465,7 +544,10 @@ const CentrosFormacionPage = () => {
                   </Select>
                 </ModalBody>
                 <ModalFooter className="flex justify-end gap-3">
-                  <Button variant="light" onPress={() => setIsModalOpen(false)}>
+                  <Button variant="light" onPress={() => {
+                    closeModal();
+                    limpiarFormulario();
+                  }}>
                     Cancelar
                   </Button>
                   <Button variant="flat" onPress={guardar}>

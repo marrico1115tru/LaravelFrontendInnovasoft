@@ -1,31 +1,90 @@
+"use client";
+
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { Button } from "@/components/ui/button";
 import DefaultLayout from "@/layouts/default";
 import Modal from "@/components/ui/Modal";
-import api from "@/Api/api"; 
+import api from "@/Api/api";
+import Cookies from "js-cookie";
+import { Lock } from "lucide-react";
 
 interface UsuariosPorRolResponse {
   labels: string[];
   data: number[];
 }
 
+// Función para obtener permisos
+const fetchPermisos = async (ruta: string, idRol: number) => {
+  try {
+    const { data } = await api.get("/por-ruta-rol/permisos", {
+      params: { ruta, idRol },
+    });
+    return data.permisos;
+  } catch (error) {
+    console.error("Error al obtener permisos:", error);
+    return {
+      puede_ver: false,
+      puede_crear: false,
+      puede_editar: false,
+      puede_eliminar: false,
+    };
+  }
+};
+
 export default function UsuariosPorRolCantidad() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [permisos, setPermisos] = useState({
+    puede_ver: false,
+    puede_crear: false,
+    puede_editar: false,
+    puede_eliminar: false,
+  });
+  const [errorPermiso, setErrorPermiso] = useState<string | null>(null);
 
-  // Consulta con React Query usando instancia de API
-  const { data, isLoading, error } = useQuery<UsuariosPorRolResponse>({
+  const {
+    data,
+    isLoading,
+    isError,
+  } = useQuery<UsuariosPorRolResponse>({
     queryKey: ["usuarios-por-rol"],
     queryFn: async () => {
       const { data } = await api.get("/estadisticas/usuarios-por-rol", {
-        withCredentials: true, // Enviar cookies automáticamente
+        withCredentials: true,
       });
       return data;
     },
+    enabled: permisos.puede_ver,
   });
+
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        const userCookie = Cookies.get("user");
+        if (!userCookie)
+          throw new Error("No se encontró la sesión del usuario. Por favor, inicie sesión.");
+
+        const user = JSON.parse(userCookie);
+        const idRol = user?.id_rol;
+        if (!idRol)
+          throw new Error("El usuario no tiene un rol válido asignado.");
+
+        const rutaActual = "/report/UsuariosRep/UsuariosPorRol";
+        const permisosObtenidos = await fetchPermisos(rutaActual, idRol);
+        setPermisos(permisosObtenidos);
+
+        if (!permisosObtenidos.puede_ver) {
+          setErrorPermiso("No tienes permiso para ver este reporte.");
+        }
+      } catch (e: any) {
+        setErrorPermiso(e.message);
+      }
+    };
+    initialize();
+  }, []);
 
   const exportarPDF = async () => {
     if (!containerRef.current) return;
@@ -61,22 +120,36 @@ export default function UsuariosPorRolCantidad() {
     pdf.save("usuarios_por_rol.pdf");
   };
 
-  if (isLoading) return <p className="p-6 text-lg text-center">Cargando...</p>;
-
-  if (error || !data)
+  if (isLoading) {
     return (
-      <p className="p-6 text-lg text-red-600 text-center">
-        Error al cargar datos.
-      </p>
+      <DefaultLayout>
+        <div className="p-6 text-lg text-center">Cargando...</div>
+      </DefaultLayout>
     );
+  }
 
-  const usuariosPorRol = data.labels.map((rol, i) => ({
+  if (isError || errorPermiso || !permisos.puede_ver) {
+    return (
+      <DefaultLayout>
+        <div className="p-6 text-center text-red-600 flex flex-col items-center gap-4">
+          <Lock size={48} />
+          <h1 className="text-2xl font-bold">Acceso Denegado</h1>
+          <p>{errorPermiso || "No tienes permiso para ver este reporte."}</p>
+        </div>
+      </DefaultLayout>
+    );
+  }
+
+  const usuariosPorRol = data?.labels.map((rol, i) => ({
     nombreRol: rol,
     cantidad: data.data[i],
-  }));
+  })) || [];
 
   const ReportContent = () => (
-    <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-3xl mx-auto space-y-6 border border-gray-200">
+    <div
+      className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-3xl mx-auto space-y-6 border border-gray-200"
+      ref={containerRef}
+    >
       <table className="w-full text-sm border border-gray-300 rounded text-center">
         <thead className="bg-indigo-100 text-indigo-900 uppercase">
           <tr>
@@ -105,8 +178,7 @@ export default function UsuariosPorRolCantidad() {
               Reporte de Usuarios por Rol
             </h1>
             <p className="text-gray-600 text-sm max-w-2xl">
-              Este reporte muestra cuántos usuarios hay agrupados por su rol en
-              el sistema.
+              Este reporte muestra cuántos usuarios hay agrupados por su rol en el sistema.
             </p>
           </div>
 
@@ -126,9 +198,7 @@ export default function UsuariosPorRolCantidad() {
           </div>
         </div>
 
-        <div ref={containerRef}>
-          <ReportContent />
-        </div>
+        <ReportContent />
 
         {showPreview && (
           <Modal onClose={() => setShowPreview(false)}>

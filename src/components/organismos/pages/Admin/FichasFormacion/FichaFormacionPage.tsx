@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import Cookies from 'js-cookie';
 import {
   Table,
   TableHeader,
@@ -21,6 +22,7 @@ import {
   Checkbox,
   useDisclosure,
   type SortDescriptor,
+  Spinner,
 } from '@heroui/react';
 
 import {
@@ -33,9 +35,11 @@ import {
 import { getTitulados } from '@/Api/TituladosService';
 import { getUsuarios } from '@/Api/Usuariosform';
 
+import api from '@/Api/api'; // Instancia axios configurada
+
 import DefaultLayout from '@/layouts/default';
 
-import { PlusIcon, MoreVertical, Search as SearchIcon } from 'lucide-react';
+import { PlusIcon, MoreVertical, Search as SearchIcon, Lock as LockIcon } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 
 import Swal from 'sweetalert2';
@@ -63,6 +67,24 @@ const INITIAL_VISIBLE_COLUMNS = [
   'actions',
 ];
 
+// Función para obtener permisos desde el API
+const fetchPermisos = async (ruta: string, idRol: number) => {
+  try {
+    const { data } = await api.get('/por-ruta-rol/permisos', {
+      params: { ruta, idRol },
+    });
+    return data.permisos;
+  } catch (error) {
+    console.error('Error al obtener permisos:', error);
+    return {
+      puede_ver: false,
+      puede_crear: false,
+      puede_editar: false,
+      puede_eliminar: false,
+    };
+  }
+};
+
 export default function FichasFormacionPage() {
   const [fichas, setFichas] = useState<any[]>([]);
   const [titulados, setTitulados] = useState<any[]>([]);
@@ -83,8 +105,42 @@ export default function FichasFormacionPage() {
 
   const { isOpen, onOpenChange, onOpen, onClose } = useDisclosure();
 
+  // Estados para permisos y carga/error
+  const [permisos, setPermisos] = useState({
+    puede_ver: false,
+    puede_crear: false,
+    puede_editar: false,
+    puede_eliminar: false,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Cargar permisos y datos al montar el componente
   useEffect(() => {
-    cargarDatos();
+    const initialize = async () => {
+      setLoading(true);
+      try {
+        const userCookie = Cookies.get('user');
+        if (!userCookie) throw new Error('No se encontró la sesión del usuario. Por favor, inicie sesión de nuevo.');
+        const user = JSON.parse(userCookie);
+        const idRol = user?.id_rol;
+        if (!idRol) throw new Error('El usuario no tiene un rol válido asignado.');
+
+        const rutaActual = '/FichaFormacionPage';
+        const fetchedPermisos = await fetchPermisos(rutaActual, idRol);
+        setPermisos(fetchedPermisos);
+
+        if (fetchedPermisos.puede_ver) {
+          await cargarDatos();
+        }
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initialize();
   }, []);
 
   const cargarDatos = async () => {
@@ -112,7 +168,6 @@ export default function FichasFormacionPage() {
       confirmButtonText: 'Sí, eliminar',
       cancelButtonText: 'Cancelar',
     });
-
     if (!result.isConfirmed) return;
 
     try {
@@ -134,7 +189,6 @@ export default function FichasFormacionPage() {
       await MySwal.fire('Error', 'Debes seleccionar un titulado', 'error');
       return;
     }
-
     const payload = {
       nombre: nombre.trim(),
       id_titulado: Number(idTitulado),
@@ -159,6 +213,8 @@ export default function FichasFormacionPage() {
   };
 
   const abrirModalEditar = (ficha: any) => {
+    if (!permisos.puede_editar) return; // Bloquear si no tiene permiso
+
     setEditId(ficha.id);
     setNombre(ficha.nombre);
     setIdTitulado(ficha.id_titulado?.toString() || ficha.titulado?.id?.toString() || '');
@@ -180,9 +236,7 @@ export default function FichasFormacionPage() {
     const fv = filterValue.toLowerCase();
     return fichas.filter((f) =>
       `${f.nombre} ${f.titulado?.nombre || ''} ${
-        f.usuario_responsable
-          ? `${f.usuario_responsable.nombre} ${f.usuario_responsable.apellido ?? ''}`
-          : ''
+        f.usuario_responsable ? `${f.usuario_responsable.nombre} ${f.usuario_responsable.apellido ?? ''}` : ''
       }`
         .toLowerCase()
         .includes(fv)
@@ -223,6 +277,7 @@ export default function FichasFormacionPage() {
       case 'entregas':
         return <span className="text-sm text-gray-600">{item.entregaMaterials?.length || 0}</span>;
       case 'actions':
+        if (!permisos.puede_editar && !permisos.puede_eliminar) return null;
         return (
           <Dropdown>
             <DropdownTrigger>
@@ -231,12 +286,16 @@ export default function FichasFormacionPage() {
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              <DropdownItem onPress={() => abrirModalEditar(item)} key={`editar-${item.id}`}>
-                Editar
-              </DropdownItem>
-              <DropdownItem onPress={() => eliminar(item.id)} key={`eliminar-${item.id}`}>
-                Eliminar
-              </DropdownItem>
+              {permisos.puede_editar ? (
+                <DropdownItem onPress={() => abrirModalEditar(item)} key={`editar-${item.id}`}>
+                  Editar
+                </DropdownItem>
+              ) : null}
+              {permisos.puede_eliminar ? (
+                <DropdownItem onPress={() => eliminar(item.id)} key={`eliminar-${item.id}`}>
+                  Eliminar
+                </DropdownItem>
+              ) : null}
             </DropdownMenu>
           </Dropdown>
         );
@@ -253,13 +312,33 @@ export default function FichasFormacionPage() {
     });
   };
 
+  if (loading) {
+    return (
+      <DefaultLayout>
+        <div className="flex justify-center items-center h-full p-6">
+          <Spinner label="Cargando..." />
+        </div>
+      </DefaultLayout>
+    );
+  }
+
+  if (error || !permisos.puede_ver) {
+    return (
+      <DefaultLayout>
+        <div className="p-6 text-center text-red-600 flex flex-col items-center gap-4">
+          <LockIcon size={48} />
+          <h1 className="text-2xl font-bold">Acceso Denegado</h1>
+          <p>{error || 'No tienes permiso para ver este módulo.'}</p>
+        </div>
+      </DefaultLayout>
+    );
+  }
+
   return (
     <DefaultLayout>
       <div className="p-6 space-y-6">
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">
-            🎓 Gestión de Fichas de Formación
-          </h1>
+          <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">🎓 Gestión de Fichas de Formación</h1>
           <p className="text-sm text-gray-600">Consulta y administra las fichas académicas.</p>
         </header>
 
@@ -302,16 +381,18 @@ export default function FichasFormacionPage() {
                           ))}
                       </DropdownMenu>
                     </Dropdown>
-                    <Button
-                      className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
-                      endContent={<PlusIcon />}
-                      onPress={() => {
-                        limpiarForm();
-                        onOpen();
-                      }}
-                    >
-                      Nueva Ficha
-                    </Button>
+                    {permisos.puede_crear ? (
+                      <Button
+                        className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
+                        endContent={<PlusIcon />}
+                        onPress={() => {
+                          limpiarForm();
+                          onOpen();
+                        }}
+                      >
+                        Nueva Ficha
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
@@ -373,21 +454,27 @@ export default function FichasFormacionPage() {
               <CardContent className="space-y-2 p-4">
                 <div className="flex justify-between items-start">
                   <h3 className="font-semibold text-lg break-words max-w-[14rem]">{ficha.nombre}</h3>
-                  <Dropdown>
-                    <DropdownTrigger>
-                      <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
-                        <MoreVertical />
-                      </Button>
-                    </DropdownTrigger>
-                    <DropdownMenu>
-                      <DropdownItem onPress={() => abrirModalEditar(ficha)} key="editar">
-                        Editar
-                      </DropdownItem>
-                      <DropdownItem onPress={() => eliminar(ficha.id)} key="eliminar">
-                        Eliminar
-                      </DropdownItem>
-                    </DropdownMenu>
-                  </Dropdown>
+                  {(permisos.puede_editar || permisos.puede_eliminar) && (
+                    <Dropdown>
+                      <DropdownTrigger>
+                        <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
+                          <MoreVertical />
+                        </Button>
+                      </DropdownTrigger>
+                      <DropdownMenu>
+                        {permisos.puede_editar ? (
+                          <DropdownItem onPress={() => abrirModalEditar(ficha)} key={`editar-mobile-${ficha.id}`}>
+                            Editar
+                          </DropdownItem>
+                        ) : null}
+                        {permisos.puede_eliminar ? (
+                          <DropdownItem onPress={() => eliminar(ficha.id)} key={`eliminar-mobile-${ficha.id}`}>
+                            Eliminar
+                          </DropdownItem>
+                        ) : null}
+                      </DropdownMenu>
+                    </Dropdown>
+                  )}
                 </div>
                 <p className="text-sm text-gray-600">Titulado: {ficha.titulado?.nombre || '—'}</p>
                 <p className="text-sm text-gray-600">
@@ -436,7 +523,7 @@ export default function FichasFormacionPage() {
                   <Button variant="light" onPress={onCloseLocal}>
                     Cancelar
                   </Button>
-                  <Button variant="flat" onPress={guardar}>
+                  <Button variant="flat" onPress={guardar} isDisabled={!permisos.puede_crear && editId === null}>
                     {editId ? 'Actualizar' : 'Crear'}
                   </Button>
                 </ModalFooter>

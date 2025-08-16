@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Cookies from "js-cookie";
 import {
   Table,
   TableHeader,
@@ -23,8 +24,11 @@ import {
   Checkbox,
   useDisclosure,
   type SortDescriptor,
+  Spinner,
+  Card,
 } from "@heroui/react";
-
+import { PlusIcon, MoreVertical, Search as SearchIcon, Lock } from "lucide-react";
+import DefaultLayout from "@/layouts/default";
 import {
   getEntregasMaterial,
   createEntregaMaterial,
@@ -32,19 +36,13 @@ import {
   deleteEntregaMaterial,
   EntregaMaterialPayload,
 } from "@/Api/entregaMaterial";
-
 import { getFichasFormacion } from "@/Api/fichasFormacion";
 import { getSolicitudes } from "@/Api/Solicitudes";
 import { getUsuarios } from "@/Api/Usuariosform";
-
-import DefaultLayout from "@/layouts/default";
-
-import { PlusIcon, MoreVertical, Search as SearchIcon } from "lucide-react";
-
-import { Card, CardContent } from "@/components/ui/card";
-
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
+import api from "@/Api/api";
+import { CardContent } from "@/components/ui/card";
 
 const MySwal = withReactContent(Swal);
 
@@ -68,8 +66,25 @@ const INITIAL_VISIBLE_COLUMNS = [
   "actions",
 ];
 
+const fetchPermisos = async (ruta: string, idRol: number) => {
+  try {
+    const { data } = await api.get("/por-ruta-rol/permisos", {
+      params: { ruta, idRol },
+    });
+    return data.permisos;
+  } catch (error) {
+    console.error("Error al obtener permisos:", error);
+    return {
+      puede_ver: false,
+      puede_crear: false,
+      puede_editar: false,
+      puede_eliminar: false,
+    };
+  }
+};
+
 const EntregaMaterialPage = () => {
-  // Estados
+  // Estados de datos
   const [entregas, setEntregas] = useState<any[]>([]);
   const [fichas, setFichas] = useState<any[]>([]);
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
@@ -83,7 +98,7 @@ const EntregaMaterialPage = () => {
     direction: "ascending",
   });
 
-  // Campos del formulario
+  // Formularios
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [observaciones, setObservaciones] = useState("");
   const [idFicha, setIdFicha] = useState<number | "">("");
@@ -91,14 +106,49 @@ const EntregaMaterialPage = () => {
   const [idResponsable, setIdResponsable] = useState<number | "">("");
   const [editId, setEditId] = useState<number | null>(null);
 
-  // Control modal
+  // Modal control
   const { isOpen, onOpenChange, onOpen, onClose } = useDisclosure();
 
-  // Carga inicial de datos
+  // Estados permisos y carga
+  const [permisos, setPermisos] = useState({
+    puede_ver: false,
+    puede_crear: false,
+    puede_editar: false,
+    puede_eliminar: false,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Carga inicial permisos y datos
   useEffect(() => {
-    cargarDatos();
+    const initialize = async () => {
+      try {
+        const userCookie = Cookies.get("user");
+        if (!userCookie) throw new Error("No se encontró la sesión del usuario. Por favor, inicie sesión de nuevo.");
+
+        const user = JSON.parse(userCookie);
+        const idRol = user?.id_rol;
+        if (!idRol) throw new Error("El usuario no tiene un rol válido asignado.");
+
+        const rutaActual = "/EntregaMaterialPage";
+        const fetchedPermisos = await fetchPermisos(rutaActual, idRol);
+        setPermisos(fetchedPermisos);
+
+        if (fetchedPermisos.puede_ver) {
+          await cargarDatos();
+        } else {
+          setError("No tienes permiso para ver este módulo.");
+        }
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    initialize();
   }, []);
 
+  // Cargar datos: entregas, fichas, solicitudes, usuarios
   const cargarDatos = async () => {
     try {
       const [ents, fich, sols, usrs] = await Promise.all([
@@ -119,6 +169,10 @@ const EntregaMaterialPage = () => {
 
   // Eliminar entrega
   const eliminar = async (id: number) => {
+    if (!permisos.puede_eliminar) {
+      await MySwal.fire("Acceso Denegado", "No tienes permiso para eliminar entregas.", "error");
+      return;
+    }
     const result = await MySwal.fire({
       title: "¿Eliminar entrega?",
       text: "No se podrá recuperar.",
@@ -139,14 +193,21 @@ const EntregaMaterialPage = () => {
     }
   };
 
-  // Guardar (crear o actualizar)
+  // Guardar entrega (nuevo o editar)
   const guardar = async () => {
+    if (!permisos.puede_crear && !editId) {
+      await MySwal.fire("Acceso Denegado", "No tienes permiso para crear entregas.", "error");
+      return;
+    }
+    if (editId && !permisos.puede_editar) {
+      await MySwal.fire("Acceso Denegado", "No tienes permiso para editar entregas.", "error");
+      return;
+    }
     if (!fechaEntrega || !idFicha || !idSolicitud || !idResponsable) {
       await MySwal.fire("Error", "Completa todos los campos obligatorios", "error");
       return;
     }
 
-    // Construir payload con los nombres esperados por el backend (snake_case)
     const payload: EntregaMaterialPayload = {
       fecha_entrega: fechaEntrega,
       observaciones: observaciones || null,
@@ -172,8 +233,12 @@ const EntregaMaterialPage = () => {
     }
   };
 
-  // Abrir modal para editar con datos cargados
+  // Abrir modal editar
   const abrirModalEditar = (e: any) => {
+    if (!permisos.puede_editar) {
+      MySwal.fire("Acceso Denegado", "No tienes permiso para editar entregas.", "error");
+      return;
+    }
     setEditId(e.id);
     setFechaEntrega(e.fecha_entrega || "");
     setObservaciones(e.observaciones || "");
@@ -193,7 +258,7 @@ const EntregaMaterialPage = () => {
     setIdResponsable("");
   };
 
-  // Filtrar entregas según texto de búsqueda
+  // Filtrar entregas
   const filtered = useMemo(() => {
     if (!filterValue) return entregas;
     const lowerFilter = filterValue.toLowerCase();
@@ -226,7 +291,6 @@ const EntregaMaterialPage = () => {
     return items;
   }, [sliced, sortDescriptor]);
 
-  // Renderizado de celdas
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
       case "fecha":
@@ -248,6 +312,7 @@ const EntregaMaterialPage = () => {
           </span>
         );
       case "actions":
+        if (!permisos.puede_editar && !permisos.puede_eliminar) return null;
         return (
           <Dropdown>
             <DropdownTrigger>
@@ -256,12 +321,16 @@ const EntregaMaterialPage = () => {
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              <DropdownItem onPress={() => abrirModalEditar(item)} key={`editar-${item.id}`}>
-                Editar
-              </DropdownItem>
-              <DropdownItem onPress={() => eliminar(item.id)} key={`eliminar-${item.id}`}>
-                Eliminar
-              </DropdownItem>
+              {permisos.puede_editar ? (
+                <DropdownItem onPress={() => abrirModalEditar(item)} key={`editar-${item.id}`}>
+                  Editar
+                </DropdownItem>
+              ) : null}
+              {permisos.puede_eliminar ? (
+                <DropdownItem onPress={() => eliminar(item.id)} key={`eliminar-${item.id}`}>
+                  Eliminar
+                </DropdownItem>
+              ) : null}
             </DropdownMenu>
           </Dropdown>
         );
@@ -270,7 +339,6 @@ const EntregaMaterialPage = () => {
     }
   };
 
-  // Toggles para mostrar/ocultar columnas
   const toggleColumn = (key: string) => {
     setVisibleColumns((prev) => {
       const copy = new Set(prev);
@@ -278,6 +346,28 @@ const EntregaMaterialPage = () => {
       return copy;
     });
   };
+
+  if (loading) {
+    return (
+      <DefaultLayout>
+        <div className="flex justify-center items-center h-full p-6">
+          <Spinner label="Cargando..." />
+        </div>
+      </DefaultLayout>
+    );
+  }
+
+  if (error || !permisos.puede_ver) {
+    return (
+      <DefaultLayout>
+        <div className="p-6 text-center text-red-600 flex flex-col items-center gap-4">
+          <Lock size={48} />
+          <h1 className="text-2xl font-bold">Acceso Denegado</h1>
+          <p>{error || "No tienes permiso para ver este módulo."}</p>
+        </div>
+      </DefaultLayout>
+    );
+  }
 
   return (
     <DefaultLayout>
@@ -331,16 +421,18 @@ const EntregaMaterialPage = () => {
                           ))}
                       </DropdownMenu>
                     </Dropdown>
-                    <Button
-                      className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
-                      endContent={<PlusIcon />}
-                      onPress={() => {
-                        limpiarFormulario();
-                        onOpen();
-                      }}
-                    >
-                      Nueva Entrega
-                    </Button>
+                    {permisos.puede_crear ? (
+                      <Button
+                        className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
+                        endContent={<PlusIcon />}
+                        onPress={() => {
+                          limpiarFormulario();
+                          onOpen();
+                        }}
+                      >
+                        Nueva Entrega
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
@@ -394,7 +486,7 @@ const EntregaMaterialPage = () => {
           </Table>
         </div>
 
-        {/* Vista móvil */}
+        {/** Vista móvil */}
         <div className="grid gap-4 md:hidden">
           {sorted.length === 0 && <p className="text-center text-gray-500">No se encontraron entregas</p>}
           {sorted.map((e) => (
@@ -402,21 +494,27 @@ const EntregaMaterialPage = () => {
               <CardContent className="space-y-2 p-4">
                 <div className="flex justify-between items-start">
                   <h3 className="font-semibold text-lg">Entrega ID {e.id}</h3>
-                  <Dropdown>
-                    <DropdownTrigger>
-                      <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
-                        <MoreVertical />
-                      </Button>
-                    </DropdownTrigger>
-                    <DropdownMenu>
-                      <DropdownItem onPress={() => abrirModalEditar(e)} key={`editar-${e.id}`}>
-                        Editar
-                      </DropdownItem>
-                      <DropdownItem onPress={() => eliminar(e.id)} key={`eliminar-${e.id}`}>
-                        Eliminar
-                      </DropdownItem>
-                    </DropdownMenu>
-                  </Dropdown>
+                  {(permisos.puede_editar || permisos.puede_eliminar) && (
+                    <Dropdown>
+                      <DropdownTrigger>
+                        <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]">
+                          <MoreVertical />
+                        </Button>
+                      </DropdownTrigger>
+                      <DropdownMenu>
+                        {permisos.puede_editar ? (
+                          <DropdownItem onPress={() => abrirModalEditar(e)} key={`editar-${e.id}`}>
+                            Editar
+                          </DropdownItem>
+                        ) : null}
+                        {permisos.puede_eliminar ? (
+                          <DropdownItem onPress={() => eliminar(e.id)} key={`eliminar-${e.id}`}>
+                            Eliminar
+                          </DropdownItem>
+                        ) : null}
+                      </DropdownMenu>
+                    </Dropdown>
+                  )}
                 </div>
                 <p className="text-sm text-gray-600">
                   <span className="font-medium">Fecha:</span> {e.fecha_entrega || ""}
@@ -428,8 +526,7 @@ const EntregaMaterialPage = () => {
                   <span className="font-medium">Ficha:</span> {e.ficha?.nombre || "—"}
                 </p>
                 <p className="text-sm text-gray-600">
-                  <span className="font-medium">Solicitud:</span>{" "}
-                  {e.solicitud?.estadoSolicitud || e.solicitud?.estado_solicitud || "—"}
+                  <span className="font-medium">Solicitud:</span> {e.solicitud?.estadoSolicitud || e.solicitud?.estado_solicitud || "—"}
                 </p>
                 <p className="text-sm text-gray-600">
                   <span className="font-medium">Responsable:</span>{" "}
@@ -441,8 +538,14 @@ const EntregaMaterialPage = () => {
           ))}
         </div>
 
-        {/* Modal nuevo/editar */}
-        <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" className="backdrop-blur-sm bg-black/30">
+        {/* Modal Nuevo / Editar */}
+        <Modal
+          isOpen={isOpen}
+          onOpenChange={onOpenChange}
+          placement="center"
+          className="backdrop-blur-sm bg-black/30"
+          isDismissable
+        >
           <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl max-w-md w-full p-6">
             {(onCloseLocal) => (
               <>
@@ -508,11 +611,11 @@ const EntregaMaterialPage = () => {
                     </select>
                   </div>
                 </ModalBody>
-                <ModalFooter>
+                <ModalFooter className="flex justify-end gap-3">
                   <Button variant="light" onPress={onCloseLocal}>
                     Cancelar
                   </Button>
-                  <Button variant="flat" onPress={guardar}>
+                  <Button color="primary" onPress={guardar}>
                     {editId ? "Actualizar" : "Crear"}
                   </Button>
                 </ModalFooter>

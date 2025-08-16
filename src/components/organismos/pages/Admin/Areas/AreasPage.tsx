@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import Cookies from "js-cookie"; // NECESARIO para leer la cookie del usuario
 import {
   Table,
   TableHeader,
@@ -20,7 +21,12 @@ import {
   ModalHeader,
   useDisclosure,
   type SortDescriptor,
+  Spinner, 
 } from "@heroui/react";
+
+
+import api from "@/Api/api"; 
+
 
 import {
   getAreas,
@@ -30,7 +36,7 @@ import {
 } from "@/Api/AreasService";
 
 import DefaultLayout from "@/layouts/default";
-import { PlusIcon, MoreVertical, Search, Pencil, Trash } from "lucide-react";
+import { PlusIcon, MoreVertical, Search, Pencil, Trash, Lock } from "lucide-react"; 
 
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
@@ -45,7 +51,27 @@ const columns = [
 
 const INITIAL_VISIBLE_COLUMNS = ["id", "nombre_area", "actions"];
 
+
+const fetchPermisos = async (ruta: string, idRol: number) => {
+  try {
+    const { data } = await api.get("/por-ruta-rol/permisos", {
+      params: { ruta, idRol },
+    });
+    return data.permisos;
+  } catch (error) {
+    console.error("Error al obtener permisos:", error);
+   
+    return {
+      puede_ver: false,
+      puede_crear: false,
+      puede_editar: false,
+      puede_eliminar: false,
+    };
+  }
+};
+
 const AreasPage = () => {
+  // --- ESTADOS DE DATOS Y UI ---
   const [areas, setAreas] = useState<any[]>([]);
   const [filterValue, setFilterValue] = useState("");
   const [visibleColumns] = useState(new Set(INITIAL_VISIBLE_COLUMNS));
@@ -55,11 +81,52 @@ const AreasPage = () => {
     column: "id",
     direction: "ascending",
   });
-
   const [nombre, setNombre] = useState("");
   const [editId, setEditId] = useState<number | null>(null);
-
   const { isOpen, onOpenChange, onOpen, onClose } = useDisclosure();
+
+  // --- NUEVOS ESTADOS PARA MANEJAR PERMISOS Y CARGA ---
+  const [permisos, setPermisos] = useState({
+    puede_ver: false,
+    puede_crear: false,
+    puede_editar: false,
+    puede_eliminar: false,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // --- EFECTO DE CARGA INICIAL: OBTENER PERMISOS Y LUEGO DATOS ---
+  useEffect(() => {
+    const initializeComponent = async () => {
+      try {
+        const userCookie = Cookies.get("user");
+        if (!userCookie) {
+          throw new Error("No se encontró la sesión del usuario. Por favor, inicie sesión de nuevo.");
+        }
+        
+        const user = JSON.parse(userCookie);
+        const idRol = user?.id_rol;
+
+        if (!idRol) {
+          throw new Error("El usuario no tiene un rol válido asignado.");
+        }
+
+        const rutaActual = "/AreasPage";
+        const fetchedPermisos = await fetchPermisos(rutaActual, idRol);
+        setPermisos(fetchedPermisos);
+
+        if (fetchedPermisos.puede_ver) {
+          await cargarAreas();
+        }
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeComponent();
+  }, []);
 
   const cargarAreas = async () => {
     try {
@@ -70,10 +137,6 @@ const AreasPage = () => {
       await MySwal.fire("Error", "Error al cargar áreas", "error");
     }
   };
-
-  useEffect(() => {
-    cargarAreas();
-  }, []);
 
   const eliminar = async (id: number) => {
     const result = await MySwal.fire({
@@ -166,34 +229,34 @@ const AreasPage = () => {
           <span className="font-medium text-gray-800">{item.nombre_area || "—"}</span>
         );
       case "actions":
+        if (!permisos.puede_editar && !permisos.puede_eliminar) {
+          return null; // No renderizar el menú si no hay acciones permitidas
+        }
         return (
           <Dropdown>
             <DropdownTrigger>
-              <Button
-                isIconOnly
-                size="sm"
-                variant="light"
-                className="rounded-full text-[#0D1324]"
-              >
-                <MoreVertical />
-              </Button>
+              <Button isIconOnly size="sm" variant="light" className="rounded-full text-[#0D1324]"><MoreVertical /></Button>
             </DropdownTrigger>
             <DropdownMenu>
-              <DropdownItem
-                key={`editar-${item.id}`}
-                onPress={() => abrirModalEditar(item)}
-                startContent={<Pencil size={16} />}
-              >
-                Editar
-              </DropdownItem>
-              <DropdownItem
-                key={`eliminar-${item.id}`}
-                onPress={() => eliminar(item.id)}
-                startContent={<Trash size={16} />}
-                className="text-danger"
-              >
-                Eliminar
-              </DropdownItem>
+              {permisos.puede_editar ? (
+                <DropdownItem
+                  key={`editar-${item.id}`}
+                  onPress={() => abrirModalEditar(item)}
+                  startContent={<Pencil size={16} />}
+                >
+                  Editar
+                </DropdownItem>
+              ) : null}
+              {permisos.puede_eliminar ? (
+                <DropdownItem
+                  key={`eliminar-${item.id}`}
+                  onPress={() => eliminar(item.id)}
+                  startContent={<Trash size={16} />}
+                  className="text-danger"
+                >
+                  Eliminar
+                </DropdownItem>
+              ) : null}
             </DropdownMenu>
           </Dropdown>
         );
@@ -202,13 +265,31 @@ const AreasPage = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <DefaultLayout>
+        <div className="flex justify-center items-center h-full p-6"><Spinner label="Cargando..." /></div>
+      </DefaultLayout>
+    );
+  }
+
+  if (error || !permisos.puede_ver) {
+    return (
+      <DefaultLayout>
+        <div className="p-6 text-center text-red-600 flex flex-col items-center gap-4">
+          <Lock size={48} />
+          <h1 className="text-2xl font-bold">Acceso Denegado</h1>
+          <p>{error || "No tienes permiso para ver este módulo."}</p>
+        </div>
+      </DefaultLayout>
+    );
+  }
+
   return (
     <DefaultLayout>
       <div className="p-6 space-y-6">
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2">
-            <span>Gestión de Áreas</span>
-          </h1>
+          <h1 className="text-2xl font-semibold text-[#0D1324] flex items-center gap-2"><span>Gestión de Áreas</span></h1>
           <p className="text-sm text-gray-600">Consulta y administra las áreas disponibles.</p>
         </header>
 
@@ -229,13 +310,15 @@ const AreasPage = () => {
                     onValueChange={setFilterValue}
                     onClear={() => setFilterValue("")}
                   />
-                  <Button
-                    className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
-                    endContent={<PlusIcon size={18} />}
-                    onPress={onOpen}
-                  >
-                    Nueva Área
-                  </Button>
+                  {permisos.puede_crear ? (
+                    <Button
+                      className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
+                      endContent={<PlusIcon size={18} />}
+                      onPress={onOpen}
+                    >
+                      Nueva Área
+                    </Button>
+                  ) : null}
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-default-400 text-sm">Total {areas.length} áreas</span>
@@ -261,27 +344,11 @@ const AreasPage = () => {
             }
             bottomContent={
               <div className="py-2 px-2 flex justify-center items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="flat"
-                  isDisabled={page === 1}
-                  onPress={() => setPage(page - 1)}
-                >
+                <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
                   Anterior
                 </Button>
-                <Pagination
-                  isCompact
-                  showControls
-                  page={page}
-                  total={pages}
-                  onChange={setPage}
-                />
-                <Button
-                  size="sm"
-                  variant="flat"
-                  isDisabled={page === pages}
-                  onPress={() => setPage(page + 1)}
-                >
+                <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
+                <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>
                   Siguiente
                 </Button>
               </div>
@@ -314,34 +381,19 @@ const AreasPage = () => {
           </Table>
         </div>
 
-        <Modal
-          isOpen={isOpen}
-          onOpenChange={onOpenChange}
-          placement="center"
-          className="backdrop-blur-sm bg-black/30"
-          isDismissable
-        >
+        <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" className="backdrop-blur-sm bg-black/30" isDismissable>
           <ModalContent className="backdrop-blur bg-white/60 shadow-xl rounded-xl max-w-lg w-full p-6">
             {() => (
               <>
                 <ModalHeader>{editId ? "Editar Área" : "Nueva Área"}</ModalHeader>
                 <ModalBody className="space-y-4">
-                  <Input
-                    label="Nombre"
-                    placeholder="Nombre del área"
-                    value={nombre}
-                    onValueChange={setNombre}
-                    radius="sm"
-                    autoFocus
-                  />
+                  <Input label="Nombre" placeholder="Nombre del área" value={nombre} onValueChange={setNombre} radius="sm" autoFocus />
                 </ModalBody>
                 <ModalFooter className="flex justify-end gap-3">
                   <Button variant="light" onPress={cerrarModal}>
                     Cancelar
                   </Button>
-                  <Button color="primary" onPress={guardar}>
-                    {editId ? "Actualizar" : "Crear"}
-                  </Button>
+                  <Button color="primary" onPress={guardar}>{editId ? "Actualizar" : "Crear"}</Button>
                 </ModalFooter>
               </>
             )}

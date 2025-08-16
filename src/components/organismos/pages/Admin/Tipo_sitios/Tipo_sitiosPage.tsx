@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Cookies from 'js-cookie'; // Para leer cookie usuario
 import {
   Table,
   TableHeader,
@@ -21,6 +22,7 @@ import {
   Checkbox,
   useDisclosure,
   type SortDescriptor,
+  Spinner,
 } from '@heroui/react';
 import {
   getTiposSitio,
@@ -29,11 +31,11 @@ import {
   deleteTipoSitio,
 } from '@/Api/Tipo_sitios';
 import DefaultLayout from '@/layouts/default';
-import { PlusIcon, MoreVertical, Search as SearchIcon } from 'lucide-react';
+import { PlusIcon, MoreVertical, Search as SearchIcon, Lock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
+import api from '@/Api/api'; // Tu instancia axios configurada
 
 const MySwal = withReactContent(Swal);
 
@@ -45,6 +47,24 @@ const columns = [
 
 const INITIAL_VISIBLE_COLUMNS = ['id', 'nombre', 'actions'];
 
+// Función para obtener los permisos del backend por ruta y rol
+const fetchPermisos = async (ruta: string, idRol: number) => {
+  try {
+    const { data } = await api.get('/por-ruta-rol/permisos', {
+      params: { ruta, idRol },
+    });
+    return data.permisos;
+  } catch (error) {
+    console.error('Error al obtener permisos:', error);
+    return {
+      puede_ver: false,
+      puede_crear: false,
+      puede_editar: false,
+      puede_eliminar: false,
+    };
+  }
+};
+
 export default function TipoSitiosPage() {
   const [tipoSitios, setTipoSitios] = useState<any[]>([]);
   const [filterValue, setFilterValue] = useState('');
@@ -55,15 +75,47 @@ export default function TipoSitiosPage() {
     column: 'id',
     direction: 'ascending',
   });
-
   const [nombre, setNombre] = useState('');
   const [editId, setEditId] = useState<number | null>(null);
-
   const { isOpen, onOpenChange, onOpen, onClose } = useDisclosure();
 
-  // Carga inicial
+  // Estados de permisos, carga y error
+  const [permisos, setPermisos] = useState({
+    puede_ver: false,
+    puede_crear: false,
+    puede_editar: false,
+    puede_eliminar: false,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Carga inicial: permisos + datos si puede ver
   useEffect(() => {
-    cargarDatos();
+    const initializeComponent = async () => {
+      try {
+        const userCookie = Cookies.get('user');
+        if (!userCookie) throw new Error('No se encontró la sesión del usuario. Por favor, inicie sesión de nuevo.');
+
+        const user = JSON.parse(userCookie);
+        const idRol = user?.id_rol;
+        if (!idRol) throw new Error('El usuario no tiene un rol válido asignado.');
+
+        const rutaActual = '/Tipo_sitiosPage';
+        const fetchedPermisos = await fetchPermisos(rutaActual, idRol);
+        setPermisos(fetchedPermisos);
+
+        if (fetchedPermisos.puede_ver) {
+          await cargarDatos();
+        } else {
+          setError('No tienes permiso para ver este módulo.');
+        }
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    initializeComponent();
   }, []);
 
   const cargarDatos = async () => {
@@ -86,7 +138,6 @@ export default function TipoSitiosPage() {
       cancelButtonText: 'Cancelar',
     });
     if (!confirm.isConfirmed) return;
-
     try {
       await deleteTipoSitio(id);
       await MySwal.fire('Eliminado', `Tipo de sitio eliminado: ID ${id}`, 'success');
@@ -102,9 +153,7 @@ export default function TipoSitiosPage() {
       await MySwal.fire('Error', 'El nombre es obligatorio', 'error');
       return;
     }
-
     const payload = { nombre: nombre.trim() };
-
     try {
       if (editId !== null) {
         await updateTipoSitio(editId, payload);
@@ -164,10 +213,11 @@ export default function TipoSitiosPage() {
       case 'nombre':
         return (
           <span className="font-medium text-gray-800 break-words max-w-[18rem]">
-            {item.nombre}
+            {item.nombre || '—'}
           </span>
         );
       case 'actions':
+        if (!permisos.puede_editar && !permisos.puede_eliminar) return null;
         return (
           <Dropdown>
             <DropdownTrigger>
@@ -182,17 +232,25 @@ export default function TipoSitiosPage() {
               </Button>
             </DropdownTrigger>
             <DropdownMenu>
-              <DropdownItem key={`editar-${item.id}`} onPress={() => abrirModalEditar(item)}>
-                Editar
-              </DropdownItem>
-              <DropdownItem key={`eliminar-${item.id}`} onPress={() => eliminar(item.id)}>
-                Eliminar
-              </DropdownItem>
+              {permisos.puede_editar ? (
+                <DropdownItem key={`editar-${item.id}`} onPress={() => abrirModalEditar(item)}>
+                  Editar
+                </DropdownItem>
+              ) : null}
+              {permisos.puede_eliminar ? (
+                <DropdownItem
+                  key={`eliminar-${item.id}`}
+                  onPress={() => eliminar(item.id)}
+                  className="text-danger"
+                >
+                  Eliminar
+                </DropdownItem>
+              ) : null}
             </DropdownMenu>
           </Dropdown>
         );
       default:
-        return item[columnKey as keyof typeof item];
+        return item[columnKey as keyof typeof item] || '—';
     }
   };
 
@@ -205,6 +263,7 @@ export default function TipoSitiosPage() {
     });
   };
 
+  // Contenido superior del Table
   const topContent = (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
@@ -220,17 +279,19 @@ export default function TipoSitiosPage() {
           aria-label="Buscar tipos de sitios"
         />
         <div className="flex gap-3">
-          <Button
-            className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
-            endContent={<PlusIcon />}
-            onPress={() => {
-              limpiarForm();
-              onOpen();
-            }}
-            aria-label="Nuevo tipo de sitio"
-          >
-            Nuevo Tipo de Sitio
-          </Button>
+          {permisos.puede_crear ? (
+            <Button
+              className="bg-[#0D1324] hover:bg-[#1a2133] text-white font-medium rounded-lg shadow"
+              endContent={<PlusIcon />}
+              onPress={() => {
+                limpiarForm();
+                onOpen();
+              }}
+              aria-label="Nuevo tipo de sitio"
+            >
+              Nuevo Tipo de Sitio
+            </Button>
+          ) : null}
           <Dropdown>
             <DropdownTrigger>
               <Button variant="flat" aria-haspopup="menu">
@@ -279,33 +340,38 @@ export default function TipoSitiosPage() {
     </div>
   );
 
+  // Contenido inferior del Table
   const bottomContent = (
     <div className="py-2 px-2 flex justify-center items-center gap-2">
-      <Button
-        size="sm"
-        variant="flat"
-        isDisabled={page === 1}
-        onPress={() => setPage(page - 1)}
-      >
+      <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(page - 1)}>
         Anterior
       </Button>
-      <Pagination
-        isCompact
-        showControls
-        page={page}
-        total={pages}
-        onChange={setPage}
-      />
-      <Button
-        size="sm"
-        variant="flat"
-        isDisabled={page === pages}
-        onPress={() => setPage(page + 1)}
-      >
+      <Pagination isCompact showControls page={page} total={pages} onChange={setPage} />
+      <Button size="sm" variant="flat" isDisabled={page === pages} onPress={() => setPage(page + 1)}>
         Siguiente
       </Button>
     </div>
   );
+
+  if (loading)
+    return (
+      <DefaultLayout>
+        <div className="flex justify-center items-center h-full p-6">
+          <Spinner label="Cargando..." />
+        </div>
+      </DefaultLayout>
+    );
+
+  if (error || !permisos.puede_ver)
+    return (
+      <DefaultLayout>
+        <div className="p-6 text-center text-red-600 flex flex-col items-center gap-4">
+          <Lock size={48} />
+          <h1 className="text-2xl font-bold">Acceso Denegado</h1>
+          <p>{error || 'No tienes permiso para ver este módulo.'}</p>
+        </div>
+      </DefaultLayout>
+    );
 
   return (
     <DefaultLayout>
@@ -318,7 +384,6 @@ export default function TipoSitiosPage() {
             Consulta y administra los tipos de sitios disponibles.
           </p>
         </header>
-
         <div className="hidden md:block rounded-xl shadow-sm bg-white overflow-x-auto">
           <Table
             aria-label="Tabla de tipos de sitios"
@@ -363,27 +428,33 @@ export default function TipoSitiosPage() {
                 <CardContent className="space-y-2 p-4">
                   <div className="flex justify-between items-start">
                     <h3 className="font-semibold text-lg break-words max-w-[18rem]">{t.nombre}</h3>
-                    <Dropdown>
-                      <DropdownTrigger>
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="light"
-                          className="rounded-full text-[#0D1324]"
-                          aria-label="Opciones"
-                        >
-                          <MoreVertical />
-                        </Button>
-                      </DropdownTrigger>
-                      <DropdownMenu>
-                        <DropdownItem key={`editar-${t.id}`} onPress={() => abrirModalEditar(t)}>
-                          Editar
-                        </DropdownItem>
-                        <DropdownItem key={`eliminar-${t.id}`} onPress={() => eliminar(t.id)}>
-                          Eliminar
-                        </DropdownItem>
-                      </DropdownMenu>
-                    </Dropdown>
+                    {(permisos.puede_editar || permisos.puede_eliminar) && (
+                      <Dropdown>
+                        <DropdownTrigger>
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="light"
+                            className="rounded-full text-[#0D1324]"
+                            aria-label="Opciones"
+                          >
+                            <MoreVertical />
+                          </Button>
+                        </DropdownTrigger>
+                        <DropdownMenu>
+                          {permisos.puede_editar ? (
+                            <DropdownItem key={`editar-${t.id}`} onPress={() => abrirModalEditar(t)}>
+                              Editar
+                            </DropdownItem>
+                          ) : null}
+                          {permisos.puede_eliminar ? (
+                            <DropdownItem key={`eliminar-${t.id}`} onPress={() => eliminar(t.id)}>
+                              Eliminar
+                            </DropdownItem>
+                          ) : null}
+                        </DropdownMenu>
+                      </Dropdown>
+                    )}
                   </div>
                   <p className="text-xs text-gray-400">ID: {t.id}</p>
                 </CardContent>
@@ -412,13 +483,14 @@ export default function TipoSitiosPage() {
                     onValueChange={setNombre}
                     radius="sm"
                     autoFocus
+                    aria-label="Nombre tipo de sitio"
                   />
                 </ModalBody>
                 <ModalFooter className="flex justify-end gap-3">
                   <Button variant="light" onPress={onCloseLocal}>
                     Cancelar
                   </Button>
-                  <Button variant="flat" onPress={guardar}>
+                  <Button variant="flat" onPress={guardar} aria-label={editId !== null ? 'Actualizar' : 'Crear'}>
                     {editId !== null ? 'Actualizar' : 'Crear'}
                   </Button>
                 </ModalFooter>
