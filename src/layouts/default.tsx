@@ -1,4 +1,4 @@
- import Sidebar from "@/components/organismos/Sidebar/Sidebar";
+import Sidebar from "@/components/organismos/Sidebar/Sidebar";
 import { User, LogOut } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import Cookies from "js-cookie";
@@ -18,18 +18,20 @@ export default function DefaultLayout({ children }: { children: React.ReactNode 
   const [usuario, setUsuario] = useState<Usuario | null>(null);
 
   useEffect(() => {
-    const userString = localStorage.getItem("user");
+    const userString = Cookies.get("user");
     if (userString) {
-      setUsuario(JSON.parse(userString));
+      try {
+        setUsuario(JSON.parse(userString));
+      } catch (error) {
+        console.error("Error parseando el usuario de las cookies", error);
+        Cookies.remove("user");
+      }
     }
   }, []);
 
   const handleLogout = () => {
-    Cookies.remove("accessToken", {
-      secure: true,
-      sameSite: "strict",
-    });
-    localStorage.clear(); // También limpiamos el usuario
+    Cookies.remove("accessToken", { secure: true, sameSite: "strict" });
+    Cookies.remove("user", { secure: true, sameSite: "strict" });
     navigate("/login");
   };
 
@@ -38,9 +40,7 @@ export default function DefaultLayout({ children }: { children: React.ReactNode 
       <Sidebar />
 
       <div className="flex flex-col flex-1 overflow-auto">
-        {/* Header */}
         <header className="bg-[#0f172a] px-6 py-4 shadow-md border-b border-slate-700 flex items-center justify-between">
-          {/* Logo y nombre */}
           <div className="flex items-center space-x-3">
             <img
               src="src/img/log.png"
@@ -50,7 +50,6 @@ export default function DefaultLayout({ children }: { children: React.ReactNode 
             <span className="text-2xl font-bold tracking-wide text-cyan-400">INNOVASOFT</span>
           </div>
 
-          {/* Perfil y logout */}
           <div className="flex items-center space-x-4">
             <Link to="/Perfil">
               <div
@@ -75,10 +74,8 @@ export default function DefaultLayout({ children }: { children: React.ReactNode 
           </div>
         </header>
 
-        {/* Contenido */}
         <main className="flex-1 overflow-auto px-6 py-8 bg-slate-100">{children}</main>
 
-        {/* Footer */}
         <footer className="w-full bg-[#0f172a] border-t border-slate-700 py-4 text-center text-sm text-white">
           <a
             href="https://heroui.com"

@@ -45,15 +45,16 @@ import { CardContent } from "@/components/ui/card";
 
 const MySwal = withReactContent(Swal);
 
+// --- CORRECCIÓN: Se elimina la columna 'Productos' ---
 const columns = [
   { name: "ID", uid: "id", sortable: true },
   { name: "Nombre", uid: "nombre", sortable: false },
   { name: "UNPSC", uid: "unpsc", sortable: false },
-  { name: "Productos", uid: "productos", sortable: false },
   { name: "Acciones", uid: "actions" },
 ];
 
-const INITIAL_VISIBLE_COLUMNS = ["id", "nombre", "unpsc", "productos", "actions"];
+// --- CORRECCIÓN: Se quita 'productos' de las columnas visibles iniciales ---
+const INITIAL_VISIBLE_COLUMNS = ["id", "nombre", "unpsc", "actions"];
 
 type Permisos = {
   puede_ver: boolean;
@@ -256,18 +257,16 @@ const CategoriasProductosPage = () => {
     return items;
   }, [sliced, sortDescriptor]);
 
+  // --- CORRECCIÓN: Se elimina el 'case' para 'productos' ---
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
       case "nombre":
         return <span className="font-medium text-gray-800">{item.nombre}</span>;
       case "unpsc":
         return <span className="text-sm text-gray-600">{item.unpsc || "—"}</span>;
-      case "productos":
-        return <span className="text-sm text-gray-600">{item.productos?.length || 0}</span>;
       case "actions":
         if (!permisos.puede_editar && !permisos.puede_eliminar) return null;
-
-        // Crear arreglo filtrado para evitar que JSX incluya false
+        
         const menuItems = [];
         if (permisos.puede_editar) {
           menuItems.push(
@@ -506,9 +505,7 @@ const CategoriasProductosPage = () => {
                 <p className="text-sm text-gray-600">
                   <span className="font-medium">UNPSC:</span> {cat.unpsc || "—"}
                 </p>
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Productos:</span> {cat.productos?.length || 0}
-                </p>
+                {/* --- CORRECCIÓN: Se elimina la línea que muestra el conteo de productos --- */}
                 <p className="text-xs text-gray-400">ID: {cat.id}</p>
               </CardContent>
             </Card>

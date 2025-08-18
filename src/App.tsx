@@ -32,6 +32,7 @@ import SolicitudesPage from "./components/organismos/pages/Admin/Solicitudes/Sol
 import EntregaMaterialPage from "./components/organismos/pages/Admin/EntregaMaterial/EntregaMaterialPage.tsx";
 import SitiosPage from "./components/organismos/pages/Admin/Sitios/SitiosPage.tsx";
 import Tipo_sitiosPage from "./components/organismos/pages/Admin/Tipo_sitios/Tipo_sitiosPage.tsx";
+import Perfil from "./components/organismos/pages/login/perfil.tsx"
 import CategoriasProductosPage from "./components/organismos/pages/Admin/categorias/categorias.tsx";
 import InventarioPage from "./components/organismos/pages/Admin/Inventario/inventario.tsx";
 import DetalleSolicitudPage from "./components/organismos/pages/Admin/detalles_solicitud/detalles_solicitud.tsx";
@@ -76,10 +77,11 @@ function App() {
         <Route path="/EntregaMaterialPage" element={<EntregaMaterialPage />} />
         <Route path="/SitiosPage" element={<SitiosPage />} />
         <Route path="/Tipo_sitiosPage" element={<Tipo_sitiosPage />} />
+        <Route path="/Perfil" element={<Perfil />} />
         <Route path ="/CategoriasProductosPage" element={<CategoriasProductosPage/>} />
         <Route path="/InventarioPage" element={<InventarioPage/>}/>
-        <Route path="/DetalleSolicitudPage" element={<DetalleSolicitudPage/>}/> 
-        <Route path="/getModulosConOpciones" element={<GetModulosConOpciones/>}/>
+        <Route path="/DetalleSolicitudPage" element={<DetalleSolicitudPage/>}/>
+         <Route path="/getModulosConOpciones" element={<GetModulosConOpciones/>}/>   
         <Route path="/recuperar" element={<RecuperarContraseña />} /> 
       </Routes>
     </QueryClientProvider>

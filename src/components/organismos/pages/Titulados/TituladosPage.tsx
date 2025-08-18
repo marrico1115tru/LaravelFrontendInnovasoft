@@ -43,14 +43,15 @@ import withReactContent from "sweetalert2-react-content";
 
 const MySwal = withReactContent(Swal);
 
+// --- CORRECCIÓN: Se elimina la columna 'Fichas' ---
 const columns = [
   { name: "ID", uid: "id", sortable: true },
   { name: "Nombre", uid: "nombre", sortable: false },
-  { name: "Fichas", uid: "fichas", sortable: false },
   { name: "Acciones", uid: "actions" },
 ];
 
-const INITIAL_VISIBLE_COLUMNS = ["id", "nombre", "fichas", "actions"];
+// --- CORRECCIÓN: Se quita 'fichas' de las columnas visibles iniciales ---
+const INITIAL_VISIBLE_COLUMNS = ["id", "nombre", "actions"];
 
 const fetchPermisos = async (ruta: string, idRol: number) => {
   try {
@@ -209,6 +210,7 @@ export default function TituladosPage() {
     return items;
   }, [sliced, sortDescriptor]);
 
+  // --- CORRECCIÓN: Se elimina el case para 'fichas' ---
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
       case "nombre":
@@ -217,8 +219,6 @@ export default function TituladosPage() {
             {item.nombre}
           </span>
         );
-      case "fichas":
-        return <span className="text-sm text-gray-600">{item.fichasFormacions?.length ?? 0}</span>;
       case "actions":
         if (!permisos.puede_editar && !permisos.puede_eliminar) {
           return null;

@@ -46,15 +46,16 @@ import api from '@/Api/api';
 
 const MySwal = withReactContent(Swal);
 
+// --- CORRECCIÓN: Se elimina la columna 'Centros' ---
 const columns = [
   { name: 'ID', uid: 'id', sortable: true },
   { name: 'Nombre', uid: 'nombre', sortable: false },
   { name: 'Departamento', uid: 'departamento', sortable: false },
-  { name: 'Centros', uid: 'centros', sortable: false },
   { name: 'Acciones', uid: 'actions', sortable: false },
 ];
 
-const INITIAL_VISIBLE_COLUMNS = ['id', 'nombre', 'departamento', 'centros', 'actions'];
+// --- CORRECCIÓN: Se quita 'centros' de las columnas visibles iniciales ---
+const INITIAL_VISIBLE_COLUMNS = ['id', 'nombre', 'departamento', 'actions'];
 
 // Función para obtener permisos del backend por ruta y rol
 const fetchPermisos = async (ruta: string, idRol: number) => {
@@ -234,7 +235,7 @@ const MunicipiosPage = () => {
     return items;
   }, [sliced, sortDescriptor]);
 
-  // Renderizado de celdas con control de permisos sobre acciones
+  // --- CORRECCIÓN: Se elimina el 'case' para 'centros' ---
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
       case 'nombre':
@@ -245,8 +246,6 @@ const MunicipiosPage = () => {
         );
       case 'departamento':
         return <span className="text-sm text-gray-600">{item.departamento}</span>;
-      case 'centros':
-        return <span className="text-sm text-gray-600">{item.centroFormacions?.length || 0}</span>;
       case 'actions':
         if (!permisos.puede_editar && !permisos.puede_eliminar) return null;
         return (
@@ -477,9 +476,7 @@ const MunicipiosPage = () => {
                   <p className="text-sm text-gray-600">
                     <span className="font-medium">Depto:</span> {m.departamento}
                   </p>
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">Centros:</span> {m.centroFormacions?.length || 0}
-                  </p>
+                  {/* --- CORRECCIÓN: Se elimina la línea que muestra el conteo de centros --- */}
                   <p className="text-xs text-gray-400">ID: {m.id}</p>
                 </CardContent>
               </Card>

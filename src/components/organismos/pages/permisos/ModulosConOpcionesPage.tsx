@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import DefaultLayout from "@/layouts/default";
 import api from "@/Api/api";
 import { AxiosError } from "axios";
+import Swal from "sweetalert2";
 
-// --- INTERFACES ---
 
 interface Rol {
   id: number;
@@ -87,7 +87,11 @@ export default function GestionPermisosPage() {
 
       } catch (error) {
         console.error("Error cargando datos iniciales:", error);
-        alert("Error al cargar datos iniciales. Revisa la consola.");
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudieron cargar los datos iniciales.',
+          });
       }
     };
     fetchData();
@@ -104,6 +108,11 @@ export default function GestionPermisosPage() {
       setPermisosDelRol(permisosFiltrados);
     } catch (error) {
       console.error("Error cargando permisos:", error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudieron cargar los permisos del rol.',
+      });
       setPermisosDelRol([]);
     }
   };
@@ -155,20 +164,44 @@ export default function GestionPermisosPage() {
   };
 
   const eliminarPermiso = async (permisoId: number) => {
-    if (!confirm("¿Seguro que deseas eliminar este permiso? Esto quitará la opción de la lista para este rol.")) return;
-    try {
-      await api.delete(`/permisos/${permisoId}`);
-      alert("Permiso eliminado correctamente.");
-      setPermisosDelRol(prev => prev.filter(p => p.id !== permisoId));
-    } catch (error) {
-      alert("Error al eliminar el permiso.");
-      console.error(error);
-    }
+    const result = await Swal.fire({
+        title: '¿Estás seguro?',
+        text: "¡No podrás revertir esto!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Sí, ¡elimínalo!',
+        cancelButtonText: 'Cancelar'
+      });
+  
+      if (result.isConfirmed) {
+        try {
+          await api.delete(`/permisos/${permisoId}`);
+          Swal.fire(
+            '¡Eliminado!',
+            'El permiso ha sido eliminado.',
+            'success'
+          );
+          setPermisosDelRol(prev => prev.filter(p => p.id !== permisoId));
+        } catch (error) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo eliminar el permiso.',
+          });
+          console.error(error);
+        }
+      }
   };
   
   const crearPermiso = async () => {
     if (!rolSeleccionado || !nuevoPermiso.id_opcion) {
-      alert("Debes seleccionar un rol y una opción.");
+        Swal.fire({
+            icon: 'error',
+            title: 'Oops...',
+            text: 'Debes seleccionar un rol y una opción.',
+          });
       return;
     }
     try {
@@ -180,16 +213,29 @@ export default function GestionPermisosPage() {
         ...restoDePermisos,
       });
 
-      alert("Permiso creado correctamente.");
+      Swal.fire({
+        icon: 'success',
+        title: '¡Creado!',
+        text: 'El permiso ha sido creado correctamente.',
+      });
+
       setNuevoPermiso({ id_opcion: "", puede_ver: false, puede_crear: false, puede_editar: false, puede_eliminar: false });
       setMostrarFormularioNuevo(false);
       setPermisosDelRol(prev => [...prev, res.data]);
     } catch (error) {
         const axiosError = error as AxiosError;
         if (axiosError.response?.status === 409) {
-            alert("Error: Ya existe un permiso para este rol y opción.");
+            Swal.fire({
+                icon: 'error',
+                title: 'Error de Conflicto',
+                text: 'Ya existe un permiso para este rol y opción.',
+              });
         } else {
-            alert("Error al crear el permiso.");
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'No se pudo crear el permiso.',
+              });
         }
       console.error(error);
     }
@@ -198,7 +244,6 @@ export default function GestionPermisosPage() {
   const guardarPermisos = async () => {
     setGuardando(true);
     try {
-      // Creamos un array de promesas, una por cada permiso que se va a actualizar.
       const promesasDeActualizacion = permisosDelRol.map(permiso => {
         const datosDelPermiso = {
           puede_ver: permiso.puede_ver,
@@ -206,18 +251,24 @@ export default function GestionPermisosPage() {
           puede_editar: permiso.puede_editar,
           puede_eliminar: permiso.puede_eliminar,
         };
-        // Hacemos la llamada a la ruta de actualización individual que SÍ existe
         return api.put(`/permisos/${permiso.id}`, datosDelPermiso);
       });
 
-      // Promise.all ejecuta todas las peticiones y espera a que terminen.
       await Promise.all(promesasDeActualizacion);
 
-      alert("Permisos actualizados correctamente.");
-      // Opcional: recargar los datos desde la BD para re-sincronizar
-      // await cargarPermisosDelRol(); 
+      Swal.fire({
+        icon: 'success',
+        title: '¡Guardado!',
+        text: 'Los permisos han sido actualizados correctamente.',
+        timer: 1500,
+        showConfirmButton: false
+      });
     } catch (error) {
-      alert("Ocurrió un error al guardar los cambios.");
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Ocurrió un error al guardar los cambios.',
+          });
       console.error(error);
     } finally {
       setGuardando(false);

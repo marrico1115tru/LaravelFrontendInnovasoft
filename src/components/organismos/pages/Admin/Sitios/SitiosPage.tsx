@@ -41,6 +41,7 @@ import api from '@/Api/api'; // instancia axios
 
 const MySwal = withReactContent(Swal);
 
+// --- CORRECCIÓN: Se elimina la columna '# Inventarios' ---
 const columns = [
   { name: 'ID', uid: 'id', sortable: true },
   { name: 'Nombre', uid: 'nombre', sortable: false },
@@ -48,10 +49,10 @@ const columns = [
   { name: 'Estado', uid: 'estado', sortable: false },
   { name: 'Área', uid: 'area', sortable: false },
   { name: 'Tipo', uid: 'tipo', sortable: false },
-  { name: '# Inventarios', uid: 'inventarios', sortable: false },
   { name: 'Acciones', uid: 'actions' },
 ];
 
+// --- CORRECCIÓN: Se quita 'inventarios' de las columnas visibles iniciales ---
 const INITIAL_VISIBLE_COLUMNS = [
   'id',
   'nombre',
@@ -59,7 +60,6 @@ const INITIAL_VISIBLE_COLUMNS = [
   'estado',
   'area',
   'tipo',
-  'inventarios',
   'actions',
 ];
 
@@ -272,8 +272,7 @@ export default function SitiosPage() {
     return items;
   }, [sliced, sortDescriptor]);
 
-  // Render de las celdas con control de permisos para acciones
-
+  // --- CORRECCIÓN: Se elimina el case para 'inventarios' ---
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
       case 'nombre':
@@ -290,8 +289,6 @@ export default function SitiosPage() {
         return <span className="text-sm text-gray-600">{item.area?.nombreArea || '—'}</span>;
       case 'tipo':
         return <span className="text-sm text-gray-600">{item.tipo_sitio?.nombre || '—'}</span>;
-      case 'inventarios':
-        return <span className="text-sm text-gray-600">{item.inventarios?.length || 0}</span>;
       case 'actions':
         if (!permisos.puede_editar && !permisos.puede_eliminar) return null;
         return (
@@ -536,9 +533,7 @@ export default function SitiosPage() {
                   <p className="text-sm text-gray-600">
                     <span className="font-medium">Tipo:</span> {s.tipo_sitio?.nombre || '—'}
                   </p>
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">Inventarios:</span> {s.inventarios?.length || 0}
-                  </p>
+                  {/* --- CORRECCIÓN: Se elimina la línea que muestra el conteo de inventarios --- */}
                   <p className="text-xs text-gray-400">ID: {s.id}</p>
                 </CardContent>
               </Card>

@@ -40,6 +40,7 @@ import api from "@/Api/api";
 
 const MySwal = withReactContent(Swal);
 
+// --- CORRECCIÓN: Se elimina la columna '# Áreas' ---
 const columns = [
   { name: "ID", uid: "id", sortable: true },
   { name: "Nombre", uid: "nombre", sortable: false },
@@ -47,7 +48,6 @@ const columns = [
   { name: "Centro de Formación", uid: "centro", sortable: false },
   { name: "Teléfono Centro", uid: "telefonoCentro", sortable: false },
   { name: "Email Centro", uid: "emailCentro", sortable: false },
-  { name: "# Áreas", uid: "areas", sortable: false },
   { name: "Acciones", uid: "actions" },
 ];
 
@@ -273,6 +273,7 @@ export default function SedesPage() {
     return items;
   }, [sliced, sortDescriptor]);
 
+  // --- CORRECCIÓN: Se elimina el case para 'areas' ---
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
       case "nombre":
@@ -301,10 +302,7 @@ export default function SedesPage() {
             {item.centro_formacion?.email || "—"}
           </span>
         );
-      case "areas":
-        return <span className="text-sm text-gray-600">{item.areas?.length || 0}</span>;
       case "actions":
-        // Evitar renderizar si no tiene ningún permiso
         if (!permisos.puede_editar && !permisos.puede_eliminar) return null;
 
         return (
@@ -560,9 +558,7 @@ export default function SedesPage() {
                   <p className="text-sm text-gray-600">
                     <span className="font-medium">Email:</span> {s.centro_formacion?.email || '—'}
                   </p>
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">Áreas:</span> {s.areas?.length || 0}
-                  </p>
+                  {/* --- CORRECCIÓN: Se elimina la línea que muestra el conteo de áreas --- */}
                   <p className="text-xs text-gray-400">ID: {s.id}</p>
                 </CardContent>
               </Card>

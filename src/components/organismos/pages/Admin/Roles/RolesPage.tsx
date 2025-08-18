@@ -39,15 +39,15 @@ import api from '@/Api/api';
 
 const MySwal = withReactContent(Swal);
 
+// --- CORRECCIÓN: Se eliminan las columnas 'Usuarios' y 'Permisos' ---
 const columns = [
   { name: 'ID', uid: 'id', sortable: true },
   { name: 'Rol', uid: 'rol', sortable: false },
-  { name: 'Usuarios', uid: 'usuarios', sortable: false },
-  { name: 'Permisos', uid: 'permisos', sortable: false },
   { name: 'Acciones', uid: 'actions' },
 ];
 
-const INITIAL_VISIBLE_COLUMNS = ['id', 'rol', 'usuarios', 'permisos', 'actions'];
+// --- CORRECCIÓN: Se quitan 'usuarios' y 'permisos' de las columnas visibles iniciales ---
+const INITIAL_VISIBLE_COLUMNS = ['id', 'rol', 'actions'];
 
 // Función para obtener los permisos del usuario por ruta y rol
 const fetchPermisos = async (ruta: string, idRol: number) => {
@@ -224,6 +224,7 @@ const RolesPage = () => {
     return items;
   }, [sliced, sortDescriptor]);
 
+  // --- CORRECCIÓN: Se eliminan los 'case' para 'usuarios' y 'permisos' ---
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
       case 'rol':
@@ -232,10 +233,6 @@ const RolesPage = () => {
             {item.nombre_rol || item.nombreRol}
           </span>
         );
-      case 'usuarios':
-        return <span className="text-sm text-gray-600">{item.usuarios?.length || 0}</span>;
-      case 'permisos':
-        return <span className="text-sm text-gray-600">{item.permisos?.length || 0}</span>;
       case 'actions':
         if (!permisos.puede_editar && !permisos.puede_eliminar) return null;
         return (

@@ -47,23 +47,21 @@ import withReactContent from 'sweetalert2-react-content';
 
 const MySwal = withReactContent(Swal);
 
+// --- CORRECCIÓN: Se eliminan las columnas '# Usuarios' y '# Entregas' ---
 const columns = [
   { name: 'ID', uid: 'id', sortable: true },
   { name: 'Nombre', uid: 'nombre', sortable: false },
   { name: 'Titulado', uid: 'titulado', sortable: false },
   { name: 'Responsable', uid: 'responsable', sortable: false },
-  { name: '# Usuarios', uid: 'usuarios', sortable: false },
-  { name: '# Entregas', uid: 'entregas', sortable: false },
   { name: 'Acciones', uid: 'actions' },
 ];
 
+// --- CORRECCIÓN: Se quitan 'usuarios' y 'entregas' de las columnas visibles iniciales ---
 const INITIAL_VISIBLE_COLUMNS = [
   'id',
   'nombre',
   'titulado',
   'responsable',
-  'usuarios',
-  'entregas',
   'actions',
 ];
 
@@ -260,6 +258,7 @@ export default function FichasFormacionPage() {
     });
   }, [sliced, sortDescriptor]);
 
+  // --- CORRECCIÓN: Se eliminan los 'case' para 'usuarios' y 'entregas' ---
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
       case 'nombre':
@@ -272,10 +271,6 @@ export default function FichasFormacionPage() {
             {item.usuario_responsable ? `${item.usuario_responsable.nombre} ${item.usuario_responsable.apellido ?? ''}` : '—'}
           </span>
         );
-      case 'usuarios':
-        return <span className="text-sm text-gray-600">{item.usuarios?.length || 0}</span>;
-      case 'entregas':
-        return <span className="text-sm text-gray-600">{item.entregaMaterials?.length || 0}</span>;
       case 'actions':
         if (!permisos.puede_editar && !permisos.puede_eliminar) return null;
         return (
@@ -480,8 +475,7 @@ export default function FichasFormacionPage() {
                 <p className="text-sm text-gray-600">
                   Responsable: {ficha.usuario_responsable ? `${ficha.usuario_responsable.nombre} ${ficha.usuario_responsable.apellido ?? ''}` : '—'}
                 </p>
-                <p className="text-sm text-gray-600">Usuarios: {ficha.usuarios?.length || 0}</p>
-                <p className="text-sm text-gray-600">Entregas: {ficha.entregaMaterials?.length || 0}</p>
+                {/* --- CORRECCIÓN: Se eliminan las líneas que muestran el conteo de usuarios y entregas --- */}
                 <p className="text-xs text-gray-400">ID: {ficha.id}</p>
               </CardContent>
             </Card>

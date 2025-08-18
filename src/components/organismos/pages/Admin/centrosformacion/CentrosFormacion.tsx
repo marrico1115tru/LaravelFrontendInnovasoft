@@ -46,6 +46,7 @@ import withReactContent from "sweetalert2-react-content";
 
 const MySwal = withReactContent(Swal);
 
+// --- CORRECCIÓN: Se elimina la columna '# Sedes' ---
 const columns = [
   { name: "ID", uid: "id", sortable: true },
   { name: "Nombre", uid: "nombre", sortable: false },
@@ -53,10 +54,10 @@ const columns = [
   { name: "Teléfono", uid: "telefono", sortable: false },
   { name: "Email", uid: "email", sortable: false },
   { name: "Municipio", uid: "municipio", sortable: false },
-  { name: "# Sedes", uid: "sedes", sortable: false },
   { name: "Acciones", uid: "actions" },
 ];
 
+// --- CORRECCIÓN: Se quita 'sedes' de las columnas visibles iniciales ---
 const INITIAL_VISIBLE_COLUMNS = [
   "id",
   "nombre",
@@ -64,7 +65,6 @@ const INITIAL_VISIBLE_COLUMNS = [
   "telefono",
   "email",
   "municipio",
-  "sedes",
   "actions",
 ];
 
@@ -275,6 +275,7 @@ const CentrosFormacionPage = () => {
     return items;
   }, [sliced, sortDescriptor]);
 
+  // --- CORRECCIÓN: Se elimina el case para 'sedes' ---
   const renderCell = (item: any, columnKey: string) => {
     switch (columnKey) {
       case "nombre":
@@ -291,8 +292,6 @@ const CentrosFormacionPage = () => {
         return <span className="text-sm text-gray-600">{item.email}</span>;
       case "municipio":
         return <span className="text-sm text-gray-600">{item.municipio?.nombre || "—"}</span>;
-      case "sedes":
-        return <span className="text-sm text-gray-600">{item.sedes?.length || 0}</span>;
       case "actions":
         if (!permisos.puede_editar && !permisos.puede_eliminar) {
           return null;
