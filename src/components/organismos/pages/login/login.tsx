@@ -16,19 +16,19 @@ const Login = () => {
     setError("");
     try {
       const response = await login(email.trim(), password.trim());
-      console.log("✅ Usuario logueado:", response);
+      console.log(" Usuario logueado:", response);
 
-      // Guardar token en cookie
+      
       Cookies.set("token", response.token, { expires: 1 });
 
-      // Guardar usuario serializado en cookie (como string JSON)
+      
       if (response.user) {
         Cookies.set("user", JSON.stringify(response.user), { expires: 1 });
       }
 
       navigate("/Home");
     } catch (err: any) {
-      console.error("❌ Error de autenticación:", err);
+      console.error(" Error de autenticación:", err);
       if (err.response?.status === 401) {
         setError("Credenciales inválidas");
       } else {
